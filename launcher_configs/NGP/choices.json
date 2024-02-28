@@ -1,0 +1,5 @@
+{
+	"EMULATOR": ["retroarch", "retroarch64", "retroarch32"],
+	"CORE": ["mednafen_ngp", "race"],
+	"EXTENSIONS": ["ngc", "ngp", "ngpc", "npc", "zip", "7z"]
+}

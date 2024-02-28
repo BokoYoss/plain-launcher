@@ -1,0 +1,5 @@
+{
+	"EMULATOR": ["retroarch", "retroarch64", "retroarch32"],
+	"CORE": ["fceumm", "nestopia", "quicknes"],
+	"EXTENSIONS": ["nes", "zip", "7z"]
+}

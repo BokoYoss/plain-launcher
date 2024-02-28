@@ -1,0 +1,3 @@
+/ngp
+/ngpc
+/Roms/Neo-Geo Pocket Color (NGPC)

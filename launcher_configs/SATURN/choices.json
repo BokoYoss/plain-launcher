@@ -1,0 +1,5 @@
+{
+	"EMULATOR": ["yabause", "yabause_pro", "yabause_pro2", "retroarch", "retroarch64", "retroarch32"],
+	"CORE": ["mednafen_saturn"],
+	"EXTENSIONS": ["ccd", "chd", "cue", "m3u", "toc"]
+}

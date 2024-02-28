@@ -1,0 +1,74 @@
+[gd_scene load_steps=6 format=3 uid="uid://bosfmsfigw4w"]
+
+[ext_resource type="Script" path="res://global.gd" id="1_t5b2j"]
+[ext_resource type="FontFile" uid="uid://l0qdpkmsjs82" path="res://launcher_configs/COMMON/fonts/Rubik/Rubik-Medium.ttf" id="2_k2p8q"]
+[ext_resource type="Texture2D" uid="uid://de3fcfe77b3sn" path="res://sprites/pixel.png" id="3_3tr3c"]
+
+[sub_resource type="Gradient" id="Gradient_yjw4f"]
+colors = PackedColorArray(0, 0, 0, 0, 1, 1, 1, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_wut5y"]
+gradient = SubResource("Gradient_yjw4f")
+
+[node name="global" type="Node2D"]
+script = ExtResource("1_t5b2j")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="BoxContainer" type="BoxContainer" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="TouchPoints" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="TouchBridge" type="Sprite2D" parent="TouchPoints"]
+texture = ExtResource("3_3tr3c")
+
+[node name="TouchCurrent" type="Sprite2D" parent="TouchPoints"]
+scale = Vector2(32, 32)
+texture = ExtResource("3_3tr3c")
+
+[node name="TouchStart" type="Sprite2D" parent="TouchPoints"]
+scale = Vector2(16, 16)
+texture = ExtResource("3_3tr3c")
+
+[node name="Pixel" type="Sprite2D" parent="."]
+texture = ExtResource("3_3tr3c")
+
+[node name="Polygon2D" type="Polygon2D" parent="."]
+
+[node name="SlotHolder" type="Node2D" parent="."]
+
+[node name="Title" type="Label" parent="SlotHolder"]
+offset_right = 1.0
+offset_bottom = 152.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_x = 4
+theme_override_constants/shadow_offset_y = 4
+theme_override_fonts/font = ExtResource("2_k2p8q")
+theme_override_font_sizes/font_size = 128
+text_overrun_behavior = 3
+
+[node name="Body" type="Label" parent="SlotHolder"]
+offset_right = 1.0
+offset_bottom = 152.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_x = 4
+theme_override_constants/shadow_offset_y = 0
+theme_override_fonts/font = ExtResource("2_k2p8q")
+theme_override_font_sizes/font_size = 128
+text_overrun_behavior = 3
+
+[node name="FarFade" type="TextureRect" parent="."]
+visible = false
+offset_right = 40.0
+offset_bottom = 40.0
+texture = SubResource("GradientTexture2D_wut5y")
+expand_mode = 1

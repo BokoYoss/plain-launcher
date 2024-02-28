@@ -1,0 +1,16 @@
+[gd_scene load_steps=4 format=3 uid="uid://cs5jslhr7r0p0"]
+
+[ext_resource type="Script" path="res://color_picker.gd" id="1_d5a7u"]
+[ext_resource type="Texture2D" uid="uid://c8ir6ewtotano" path="res://sprites/duel_palette.png" id="2_ao4vu"]
+[ext_resource type="Texture2D" uid="uid://n85g0tq7mvo0" path="res://sprites/cursor.png" id="3_kqsow"]
+
+[node name="ColorPicker" type="Node2D"]
+script = ExtResource("1_d5a7u")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = ExtResource("2_ao4vu")
+
+[node name="Cursor" type="Sprite2D" parent="Sprite2D"]
+texture_filter = 1
+texture = ExtResource("3_kqsow")

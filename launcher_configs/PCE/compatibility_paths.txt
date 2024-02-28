@@ -1,0 +1,4 @@
+/pcengine
+/pnenginecd
+/Roms/PC-Engine (PCE)
+/Roms/PCE

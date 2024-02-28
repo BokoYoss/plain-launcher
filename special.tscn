@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3 uid="uid://cp4e11kaayv46"]
+
+[ext_resource type="Script" path="res://special.gd" id="1_5schk"]
+
+[node name="settings" type="Node2D"]
+script = ExtResource("1_5schk")
+
+[node name="Path" type="RichTextLabel" parent="."]
+offset_right = 40.0
+offset_bottom = 23.0
+bbcode_enabled = true

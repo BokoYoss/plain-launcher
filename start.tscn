@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://2vtr85pbg7je"]
+
+[node name="start" type="Node2D"]
+
+[node name="ColorRect" type="ColorRect" parent="."]
+offset_bottom = 40.0

@@ -1,0 +1,3 @@
+[submodule "plain-launcher-android-plugin"]
+	path = plain-launcher-android-plugin
+	url = https://github.com/BokoYoss/plain-launcher-android-plugin.git

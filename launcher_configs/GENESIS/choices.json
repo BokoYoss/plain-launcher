@@ -1,0 +1,5 @@
+{
+	"EMULATOR": ["retroarch", "retroarch64", "retroarch32"],
+	"CORE": ["picodrive", "genesis_plus_gx"],
+	"EXTENSIONS": ["md", "gen", "zip", "7z"]
+}

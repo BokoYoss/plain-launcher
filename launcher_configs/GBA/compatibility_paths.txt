@@ -1,0 +1,4 @@
+/gba
+/Roms/Game Boy Advance (GBA)
+/Roms/Game Boy Advance (MGBA)
+/Roms/GBA

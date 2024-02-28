@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cl2713w02vr3x"]
+
+[ext_resource type="Script" path="res://path_adder.gd" id="1_fexw8"]
+
+[node name="PathAdder" type="Node2D"]
+script = ExtResource("1_fexw8")

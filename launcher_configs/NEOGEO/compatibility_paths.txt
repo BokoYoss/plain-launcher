@@ -1,0 +1,2 @@
+/neogeo
+/Roms/NEOGEO

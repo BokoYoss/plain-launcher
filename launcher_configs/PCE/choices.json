@@ -1,0 +1,5 @@
+{
+	"EMULATOR": ["retroarch", "retroarch64", "retroarch32"],
+	"CORE": ["mednafen_pce_fast"],
+	"EXTENSIONS": ["pce", "chd", "ccd", "zip", "7z"]
+}

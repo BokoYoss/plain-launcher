@@ -1,0 +1,5 @@
+{
+	"EMULATOR": ["redream", "reicast", "flycast", "retroarch", "retroarch64", "retroarch32"],
+	"CORE": ["flycast", "flycast_gles2", "retrodream"],
+	"EXTENSIONS": ["7z", "bin", "cdi", "chd", "cue", "dat", "elf", "gdi", "iso", "lst", "m3u", "zip"]
+}

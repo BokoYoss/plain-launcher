@@ -1,0 +1,125 @@
+{
+	"retroarch" : {
+		"action": "android.intent.action.MAIN",
+		"componentPackage": "com.retroarch",
+		"componentClass": "com.retroarch.browser.retroactivity.RetroActivityFuture",
+		"extras": {
+			"ROM": "<GAME>",
+			"LIBRETRO": "/data/data/com.retroarch/cores/<CORE>_libretro_android.so",
+			"CONFIGFILE": "/storage/emulated/0/Android/data/com.retroarch/files/retroarch.cfg",
+			"QUITFOCUS": "true"
+		}
+	},
+	"retroarch64" : {
+		"action": "android.intent.action.MAIN",
+		"componentPackage": "com.retroarch.aarch64",
+		"componentClass": "com.retroarch.browser.retroactivity.RetroActivityFuture",
+		"extras": {
+			"ROM": "<GAME>",
+			"LIBRETRO": "/data/data/com.retroarch.aarch64/cores/<CORE>_libretro_android.so",
+			"CONFIGFILE": "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/retroarch.cfg",
+			"QUITFOCUS": "true"
+		}
+	},
+	"retroarch32" : {
+		"action": "android.intent.action.MAIN",
+		"componentPackage": "com.retroarch.ra32",
+		"componentClass": "com.retroarch.browser.retroactivity.RetroActivityFuture",
+		"extras": {
+			"ROM": "<GAME>",
+			"LIBRETRO": "/data/data/com.retroarch.ra32/cores/<CORE>_libretro_android.so",
+			"CONFIGFILE": "/storage/emulated/0/Android/data/com.retroarch.ra32/files/retroarch.cfg",
+			"QUITFOCUS": "true"
+		}
+	},
+	"duckstation" : {
+		"action": "android.intent.action.MAIN",
+		"componentPackage": "com.github.stenzek.duckstation",
+		"componentClass": "com.github.stenzek.duckstation.EmulationActivity",
+		"extras": {
+			"bootPath": "<GAME>"
+		}
+	},
+	"ppsspp": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.ppsspp.ppsspp",
+		"componentClass": "org.ppsspp.ppsspp.PpssppActivity",
+		"data": "<GAME>"
+	},
+	"ppssppgold": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.ppsspp.ppssppgold",
+		"componentClass": "org.ppsspp.ppsspp.PpssppActivity",
+		"data": "<GAME>"
+	},
+	"aethersx2": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "xyz.aethersx2.android",
+		"componentClass": "xyz.aethersx2.android.EmulationActivity",
+		"extras": {
+			"bootPath": "<GAME>"
+		}
+	},
+	"dolphin": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.dolphinemu.dolphinemu",
+		"componentClass": "org.dolphinemu.dolphinemu.ui.main.MainActivity",
+		"data": "<GAME>"
+	},
+	"citra": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.citra.emu",
+		"componentClass": "org.citra.emu.ui.main.MainActivity",
+		"extras": {
+			"GamePath": "<GAME>"
+		}
+	},
+	"drastic": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "com.dsemu.drastic",
+		"componentClass": "com.dsemu.drastic.DraSticActivity",
+		"data": "<GAME>"
+	},
+	"yabause": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.uoyabause.android",
+		"componentClass": "org.uoyabause.android.Yabause",
+		"extras": {
+			"org.uoyabause.android.FileNameEx": "<GAME>"
+		}
+	},
+	"yabause_pro": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.uoyabause.android.pro",
+		"componentClass": "org.uoyabause.android.pro.org.uoyabause.android.Yabause",
+		"extras": {
+			"org.uoyabause.android.FileNameEx": "<GAME>"
+		}
+	},
+	"yabause_pro2": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.devmiyax.yabasanshioro2.pro",
+		"componentClass": "org.devmiyax.yabasanshioro2.pro.org.uoyabause.android.Yabause",
+		"extras": {
+			"org.uoyabause.android.FileNameEx": "<GAME>"
+		}
+	},
+	"flycast": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "com.flycast.emulator",
+		"componentClass": "com.flycast.emulator.com.reicast.emulator.MainActivity",
+		"data": "<GAME>"
+	},
+	"reicast": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "com.reicast.emulator",
+		"componentClass": "com.reicast.emulator.MainActivity",
+		"data": "<GAME>"
+	},
+	"redream": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "io.recompiled.redream",
+		"componentClass": "io.recompiled.redream.MainActivity",
+		"data": "<GAME>"
+	}
+}

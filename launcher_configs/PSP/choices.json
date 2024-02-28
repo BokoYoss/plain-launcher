@@ -1,0 +1,5 @@
+{
+	"EMULATOR": ["ppsspp", "ppssppgold", "retroarch", "retroarch64", "retroarch32"],
+	"CORE": ["ppsspp"],
+	"EXTENSIONS": ["iso", "cso"]
+}

@@ -1,0 +1,5 @@
+{
+	"EMULATOR": ["retroarch", "retroarch64", "retroarch32"],
+	"CORE": ["fbneo"],
+	"EXTENSIONS": ["zip", "7z"]
+}
