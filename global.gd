@@ -32,6 +32,7 @@ const CFG_VISUAL_LETTER_OUTLINES = "VISUAL_LETTER_OUTLINES"
 const CFG_TOUCH_VISIBLE = "TOUCH_VISIBLE"
 const CFG_LEFT_MARGIN = "TEXT_LEFT_MARGIN"
 const CFG_TOP_MARGIN = "TEXT_TOP_MARGIN"
+const CFG_TEXT_LENGTH = "TEXT_LENGTH"
 
 var DEFAULT_SETTINGS = {
 	CFG_CONFIRM_SWAP: false,
@@ -53,7 +54,8 @@ var DEFAULT_SETTINGS = {
 	CFG_VISUAL_LETTER_OUTLINES: 0,
 	CFG_TOUCH_VISIBLE: true,
 	CFG_LEFT_MARGIN: 16.0,
-	CFG_TOP_MARGIN: 8.0
+	CFG_TOP_MARGIN: 8.0,
+	CFG_TEXT_LENGTH: 0.5,
 }
 
 const PATH_CONFIG = "/Config/"
@@ -286,7 +288,7 @@ func set_up_slots():
 	message.position.y = Global.window_height - text_height
 	#message.size.x = Global.window_width / 2.0
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	message.size.x = Global.window_width - (get_setting(CFG_VISUAL_COVER_SIZE).x * Global.window_width)
+	message.size.x = Global.window_width * get_setting(CFG_TEXT_LENGTH)
 	message.position.x = left_bound
 	if get_setting(CFG_VISUAL_BODY_ORIENTATION) == HORIZONTAL_ALIGNMENT_RIGHT:
 		message.position.x = -2 * left_bound
@@ -413,6 +415,10 @@ func cycle_left_margin():
 
 func cycle_top_margin():
 	cycle_options(CFG_TOP_MARGIN, [0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0])
+	set_up_slots()
+
+func cycle_line_length():
+	cycle_options(CFG_TEXT_LENGTH, [0.25, 0.4, 0.5, 0.6, 0.75, 1.0])
 	set_up_slots()
 
 func toggle_touch_visible():

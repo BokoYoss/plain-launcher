@@ -37,8 +37,13 @@ func get_storage_selection(path):
 func on_storage_config_failure(msg):
 	pass
 
+const LOREM = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum"
+
 func show_visual_settings():
-	var visual_settings = ["Change size", "Cover size", "Cover position", "Cover border", "Cover opacity", "Drop shadow", "System borders: " + str(Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER)), "Title orientation", "Left margin", "Top margin", "Letter outlines", "Change font", "Change background color", "Change foreground color"]
+	var line_length_example = ""
+	for i in range(0, Global.window_width):
+		line_length_example += "0"
+	var visual_settings = ["Change size", "Cover size", "Cover position", "Cover border", "Cover opacity", "Drop shadow", "System borders: " + str(Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER)), "Title orientation", "Left margin", "Top margin", "Text cutoff: " + LOREM, "Letter outlines", "Change font", "Change background color", "Change foreground color"]
 	var hide_toggle = "Show hidden items"
 	if Global.show_hidden:
 		hide_toggle = "Hide hidden items"
@@ -160,6 +165,10 @@ func _process(delta):
 			return
 		elif "caps lock" in selected:
 			Global.caps_lock()
+			show_visual_settings()
+			return
+		elif "text cutoff" in selected:
+			Global.cycle_line_length()
 			show_visual_settings()
 			return
 		elif "change size" in selected:
