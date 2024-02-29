@@ -52,8 +52,8 @@ var DEFAULT_SETTINGS = {
 	CFG_VISUAL_ART_POSITION_Y: 0.5,
 	CFG_VISUAL_LETTER_OUTLINES: 0,
 	CFG_TOUCH_VISIBLE: true,
-	CFG_LEFT_MARGIN: 16,
-	CFG_TOP_MARGIN: 8
+	CFG_LEFT_MARGIN: 16.0,
+	CFG_TOP_MARGIN: 8.0
 }
 
 const PATH_CONFIG = "/Config/"
@@ -82,7 +82,7 @@ var confirming = false
 
 var default_text_height = 128
 var text_height = default_text_height
-var left_bound = 0
+var left_bound = 0.0
 var special_orientation_leftward = 23
 var special_orientation_rightward = 24
 var slot_offset = left_bound
@@ -194,6 +194,7 @@ func _ready():
 	clean_regex.compile("\\s*\\(.+\\)\\s*")
 
 	get_tree().get_root().size_changed.connect(resize)
+
 	set_up_slots()
 
 
@@ -351,8 +352,9 @@ func refresh_fonts():
 		slot.add_theme_font_override("font", font)
 
 func cycle_options(cfg_key, options_list):
+	print("SETTING OPTION " + cfg_key + " with list " + str(options_list))
 	if get_setting(cfg_key) not in options_list:
-		store_setting(cfg_key, option_list[0])
+		store_setting(cfg_key, options_list[0])
 		return
 	for i in range(0, options_list.size()):
 		var opt = options_list[i]
@@ -407,11 +409,11 @@ func cycle_art_opacity():
 	refresh_art()
 
 func cycle_left_margin():
-	cycle_options(CFG_LEFT_MARGIN, [0, 16, 32, 48, 64, 80, 96, 112, 128])
+	cycle_options(CFG_LEFT_MARGIN, [0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0])
 	set_up_slots()
 
 func cycle_top_margin():
-	cycle_options(CFG_TOP_MARGIN, [0, 16, 32, 48, 64, 80, 96, 112, 128])
+	cycle_options(CFG_TOP_MARGIN, [0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0])
 	set_up_slots()
 
 func toggle_touch_visible():
@@ -1184,7 +1186,6 @@ func _physics_process(delta):
 		pending_special = false
 	if pending_special and ((confirm_swapped and Input.is_action_just_released("back")) or (!confirm_swapped and Input.is_action_just_released("select"))):
 		touch_check_time = Time.get_ticks_msec() + 1000
-		print("here")
 		go_to_special()
 		return
 
@@ -1192,7 +1193,7 @@ func _physics_process(delta):
 	if control_tilt.x < -0.5:
 		# could be held
 		if title.position.x > 0:
-			title.position.x = lerp(title.position.x, 0.0, 0.3)
+			title.position.x = lerp(float(title.position.x), 0.0, 0.3)
 			if title.position.x > left_bound / 2.0:
 				pending_back = false
 			else:
@@ -1200,7 +1201,7 @@ func _physics_process(delta):
 					vibrate(100)
 				pending_back = true
 	elif title.position.x < left_bound - 1:
-		title.position.x = lerp(title.position.x, left_bound, 0.2)
+		title.position.x = lerp(float(title.position.x), left_bound, 0.2)
 	else:
 		title.position.x = left_bound
 		pending_back = false
