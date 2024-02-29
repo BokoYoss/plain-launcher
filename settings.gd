@@ -38,7 +38,7 @@ func on_storage_config_failure(msg):
 	pass
 
 func show_visual_settings():
-	var visual_settings = ["Change size", "Cover size", "Cover border", "Cover opacity", "Drop shadow", "System borders: " + str(Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER)), "Title orientation", "Letter outlines", "Change font", "Change background color", "Change foreground color"]
+	var visual_settings = ["Change size", "Cover size", "Cover border", "Cover opacity", "Drop shadow", "System borders: " + str(Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER)), "Title orientation", "Left margin", "Top margin", "Letter outlines", "Change font", "Change background color", "Change foreground color"]
 	var hide_toggle = "Show hidden items"
 	if Global.show_hidden:
 		hide_toggle = "Hide hidden items"
@@ -126,6 +126,14 @@ func _process(delta):
 			Global.cycle_art_opacity()
 			show_visual_settings()
 			Global.refresh_art()
+			return
+		elif "left margin" == selected:
+			Global.cycle_left_margin()
+			show_visual_settings()
+			return
+		elif "top margin" == selected:
+			Global.cycle_top_margin()
+			show_visual_settings()
 			return
 		elif "letter outlines" == selected:
 			Global.toggle_text_outline()

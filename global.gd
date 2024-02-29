@@ -26,8 +26,12 @@ const CFG_VISUAL_COVER_OPACITY = "VISUAL_COVER_OPACITY"
 const CFG_VISUAL_TITLE_ORIENTATION = "VISUAL_TITLE_ORIENTATION"
 const CFG_VISUAL_BODY_ORIENTATION = "VISUAL_BODY_ORIENTATION"
 const CFG_VISUAL_ART_ORIENTATION = "VISUAL_ART_ORIENTATION"
+const CFG_VISUAL_ART_POSITION_X = "VISUAL_ART_POS_X"
+const CFG_VISUAL_ART_POSITION_Y = "VISUAL_ART_POS_Y"
 const CFG_VISUAL_LETTER_OUTLINES = "VISUAL_LETTER_OUTLINES"
 const CFG_TOUCH_VISIBLE = "TOUCH_VISIBLE"
+const CFG_LEFT_MARGIN = "TEXT_LEFT_MARGIN"
+const CFG_TOP_MARGIN = "TEXT_TOP_MARGIN"
 
 var DEFAULT_SETTINGS = {
 	CFG_CONFIRM_SWAP: false,
@@ -38,14 +42,18 @@ var DEFAULT_SETTINGS = {
 	CFG_VIBRATE: true,
 	CFG_VISUAL_BORDER: Vector2(8, 8),
 	CFG_VISUAL_SYSTEM_BORDER: false,
-	CFG_VISUAL_DROP_SHOW: Vector2(32, 32),
+	CFG_VISUAL_DROP_SHOW: Vector2.ZERO,
 	CFG_VISUAL_COVER_SIZE: Vector2(0.4, 0.6),
 	CFG_VISUAL_COVER_OPACITY: 1.0,
 	CFG_VISUAL_TITLE_ORIENTATION: HORIZONTAL_ALIGNMENT_LEFT,
 	CFG_VISUAL_BODY_ORIENTATION: HORIZONTAL_ALIGNMENT_LEFT,
 	CFG_VISUAL_ART_ORIENTATION: 0.75,
+	CFG_VISUAL_ART_POSITION_X: 0.75,
+	CFG_VISUAL_ART_POSITION_Y: 0.5,
 	CFG_VISUAL_LETTER_OUTLINES: 0,
-	CFG_TOUCH_VISIBLE: true
+	CFG_TOUCH_VISIBLE: true,
+	CFG_LEFT_MARGIN: 16,
+	CFG_TOP_MARGIN: 8
 }
 
 const PATH_CONFIG = "/Config/"
@@ -188,6 +196,7 @@ func _ready():
 	get_tree().get_root().size_changed.connect(resize)
 	set_up_slots()
 
+
 	cover_art = Sprite2D.new()
 	drop_shadow = cover_art.duplicate()
 	drop_shadow.modulate = Color.BLACK
@@ -200,7 +209,8 @@ func _ready():
 	cover.add_child.call_deferred(drop_shadow)
 	cover.add_child.call_deferred(border)
 	cover.add_child.call_deferred(cover_art)
-	cover.position.y = window_height / 2.0
+	cover.position.y = window_height * get_setting(CFG_VISUAL_ART_POSITION_Y)
+	cover.position.x = window_width * get_setting(CFG_VISUAL_ART_POSITION_X)
 
 	var list_file_contents = get_list_file_contents()
 	if not list_file_contents.has("hidden"):
@@ -260,13 +270,13 @@ func set_up_slots():
 	var scaled_text_height = default_text_height * get_setting(CFG_SCALER)
 
 	var outline_thickness = get_setting(CFG_VISUAL_LETTER_OUTLINES)
-	left_bound = scaled_text_height / 4.0
+	left_bound = get_setting(CFG_LEFT_MARGIN)
 	title = $SlotHolder/Title
 	title.size.x = Global.window_width - left_bound * 2
 	title.size.y = 0
 	title.horizontal_alignment = get_setting(CFG_VISUAL_TITLE_ORIENTATION)
 	title.add_theme_constant_override("outline_size", outline_thickness)
-	title.position.y = title_offset
+	title.position.y = get_setting(CFG_TOP_MARGIN)
 	title.position.x = left_bound
 	title.uppercase = true
 	title.set("theme_override_font_sizes/font_size", scaled_text_height)
@@ -276,8 +286,10 @@ func set_up_slots():
 	message.position.y = Global.window_height - text_height
 	#message.size.x = Global.window_width / 2.0
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	message.size.x = Global.window_width - left_bound * 2
+	message.size.x = Global.window_width - (get_setting(CFG_VISUAL_COVER_SIZE).x * Global.window_width)
 	message.position.x = left_bound
+	if get_setting(CFG_VISUAL_BODY_ORIENTATION) == HORIZONTAL_ALIGNMENT_RIGHT:
+		message.position.x = -2 * left_bound
 	message.modulate = get_setting(CFG_FG_COLOR)
 	message.set("theme_override_font_sizes/font_size", scaled_text_height / 2.0)
 	$Pixel.modulate = get_setting(CFG_FG_COLOR)
@@ -296,17 +308,8 @@ func set_up_slots():
 		var new_slot: Label = message.duplicate()
 		#new_slot.size.x = Global.window_width / 2.0
 		slot_offset = left_bound
-		var alignment = body_alignment
-		if alignment == special_orientation_leftward:
-			alignment = HORIZONTAL_ALIGNMENT_RIGHT
-			new_slot.size.x = window_width * 0.5 - left_bound
-		elif alignment == special_orientation_rightward:
-			alignment = HORIZONTAL_ALIGNMENT_LEFT
-			slot_offset = window_width / 2.0 + left_bound
-			new_slot.size.x = window_width * 0.5 - left_bound
-		if alignment == HORIZONTAL_ALIGNMENT_LEFT:
-			new_slot.size.x = window_width
-		new_slot.horizontal_alignment = alignment
+
+		new_slot.horizontal_alignment = body_alignment
 		message.set("theme_override_font_sizes/font_size", scaled_text_height / 2.0)
 		slot_holder.add_child.call_deferred(new_slot)
 		visible_slots.append(new_slot)
@@ -369,13 +372,12 @@ func cycle_sizes():
 	refresh_art()
 
 func cycle_cover_sizes():
-	cycle_options(CFG_VISUAL_COVER_SIZE, [Vector2.ZERO, Vector2(0.2, 0.3), Vector2(0.4, 0.6), Vector2(0.5, 0.8), Vector2(0.6, 0.9), Vector2(1.0, 1.0)])
+	cycle_options(CFG_VISUAL_COVER_SIZE, [Vector2.ZERO, Vector2(0.2, 0.3), Vector2(0.4, 0.6), Vector2(0.5, 0.8)])
 	set_up_slots()
 	refresh_art()
 	show_options(scroll_offset)
 	set_all_text_color(get_setting(CFG_FG_COLOR))
 	highlight_selection(option_selection)
-
 
 func cycle_drop_shadow_locations():
 	cycle_options(CFG_VISUAL_DROP_SHOW, [Vector2.ZERO, Vector2(32, 32), Vector2(-32, 32), Vector2(-32, -32), Vector2(32, -32)])
@@ -392,7 +394,7 @@ func cycle_title_allignment():
 	set_up_slots()
 
 func cycle_body_allignment():
-	cycle_options(CFG_VISUAL_BODY_ORIENTATION, [HORIZONTAL_ALIGNMENT_LEFT, special_orientation_leftward, HORIZONTAL_ALIGNMENT_CENTER, special_orientation_rightward, HORIZONTAL_ALIGNMENT_RIGHT])
+	cycle_options(CFG_VISUAL_BODY_ORIENTATION, [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT])
 	set_up_slots()
 	set_all_text_color(get_setting(CFG_FG_COLOR))
 
@@ -403,6 +405,14 @@ func cycle_art_alignment():
 func cycle_art_opacity():
 	cycle_options(CFG_VISUAL_COVER_OPACITY, [0.1, 0.25, 0.5, 0.75, 0.9, 1.0])
 	refresh_art()
+
+func cycle_left_margin():
+	cycle_options(CFG_LEFT_MARGIN, [0, 16, 32, 48, 64, 80, 96, 112, 128])
+	set_up_slots()
+
+func cycle_top_margin():
+	cycle_options(CFG_TOP_MARGIN, [0, 16, 32, 48, 64, 80, 96, 112, 128])
+	set_up_slots()
 
 func toggle_touch_visible():
 	store_setting(CFG_TOUCH_VISIBLE, !get_setting(CFG_TOUCH_VISIBLE))
@@ -567,18 +577,12 @@ func refresh_art(image_path=Global.get_image_path()):
 		else:
 			var image = Image.load_from_file(image_path)
 			cover_art.texture = ImageTexture.create_from_image(image)
-		var effective_height_offset = title.size.y
-		if get_setting(CFG_SCALER) <= 0.5 or get_setting(CFG_VISUAL_COVER_SIZE).x >= 1.0:
-			effective_height_offset = 0
-		var effective_height = (Global.window_height - effective_height_offset) # height with title
+		#var effective_height_offset = title.size.y
+		#if get_setting(CFG_SCALER) <= 0.5 or get_setting(CFG_VISUAL_COVER_SIZE).x >= 1.0:
+			#effective_height_offset = 0
+		#var effective_height = (Global.window_height - effective_height_offset) # height with title
 		var scale_ratio_x = ((Global.window_width) * get_setting(CFG_VISUAL_COVER_SIZE).x) / (cover_art.texture.get_size().x + get_setting(CFG_VISUAL_BORDER).x)
-		if get_setting(CFG_VISUAL_BODY_ORIENTATION) == special_orientation_rightward:
-			scale_ratio_x = (slot_offset * get_setting(CFG_VISUAL_COVER_SIZE).x) / (cover_art.texture.get_size().x + get_setting(CFG_VISUAL_BORDER).x)
-		if get_setting(CFG_VISUAL_BODY_ORIENTATION) == HORIZONTAL_ALIGNMENT_RIGHT:
-			scale_ratio_x = Global.window_width * 0.5 / cover_art.texture.get_size().x
-		if get_setting(CFG_VISUAL_BODY_ORIENTATION) == HORIZONTAL_ALIGNMENT_CENTER:
-			scale_ratio_x = Global.window_width / cover_art.texture.get_size().x
-		var scale_ratio_y = (effective_height * get_setting(CFG_VISUAL_COVER_SIZE).y) / (cover_art.texture.get_size().y + + get_setting(CFG_VISUAL_BORDER).y)
+		var scale_ratio_y = (Global.window_height * get_setting(CFG_VISUAL_COVER_SIZE).y) / (cover_art.texture.get_size().y + + get_setting(CFG_VISUAL_BORDER).y)
 		if get_setting(CFG_VISUAL_COVER_SIZE).x == 1.0:
 			scale_ratio_x = Global.window_width / cover_art.texture.get_size().x
 			scale_ratio_y = Global.window_height / cover_art.texture.get_size().y
@@ -588,12 +592,6 @@ func refresh_art(image_path=Global.get_image_path()):
 		var scale_ratio = min(scale_ratio_x, scale_ratio_y)
 
 		cover_art.scale = Vector2(scale_ratio, scale_ratio)
-		#cover.position.x = window_width * get_setting(CFG_VISUAL_ART_ORIENTATION)
-		cover.position.x = window_width - get_setting(CFG_VISUAL_COVER_SIZE).x * window_width / 2.0
-		cover.position.y = effective_height_offset + (effective_height / 2.0)
-		#	cover.position.y = (window_height + text_height * get_setting(CFG_SCALER) * 3) / 2.0
-		#if (cover_art.scale.x * cover_art.texture.get_size().x / 2.0) + cover.position.x > window_width:
-			#cover.position.x = window_width - (cover_art.scale.x * cover_art.texture.get_size().x / 2.0)
 
 		if get_setting(CFG_VISUAL_BORDER) != Vector2.ZERO:
 			border.visible = true
