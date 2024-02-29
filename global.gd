@@ -197,7 +197,6 @@ func _ready():
 
 	set_up_slots()
 
-
 	cover_art = Sprite2D.new()
 	drop_shadow = cover_art.duplicate()
 	drop_shadow.modulate = Color.BLACK
@@ -573,6 +572,8 @@ func refresh_art(image_path=Global.get_image_path()):
 		return
 	var art_file = FileAccess.open(image_path, FileAccess.READ)
 	cover.modulate.a = get_setting(CFG_VISUAL_COVER_OPACITY)
+	cover.position.y = window_height * get_setting(CFG_VISUAL_ART_POSITION_Y)
+	cover.position.x = window_width * get_setting(CFG_VISUAL_ART_POSITION_X)
 	if get_setting(CFG_VISUAL_COVER_SIZE) != Vector2.ZERO:
 		if img_texture_override != null:
 			cover_art.texture = img_texture_override
@@ -1025,6 +1026,9 @@ func on_scroll():
 		post_scroll_callback.call()
 	refresh_art()
 
+func cursor_locked():
+	return current_screen == "color_picker" or current_screen == "art_placer"
+
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	if message.modulate.a > 0:
@@ -1033,7 +1037,7 @@ func _process(delta):
 		show_message(message_queue.pop_front())
 	if Input.is_action_just_pressed("select") or Input.is_action_just_pressed("back"):
 		vibrate(50)
-	if current_screen != "color_picker":
+	if !cursor_locked():
 		if Global.up_just_pressed():
 			move_up()
 			held_time = Time.get_ticks_msec() + 500
@@ -1120,7 +1124,7 @@ func _physics_process(delta):
 	if touch_position == null or touch_start_position == null:
 		control_tilt = Vector2(Input.get_action_strength("left_stick_right") - Input.get_action_strength("left_stick_left"), Input.get_action_strength("left_stick_down") - Input.get_action_strength("left_stick_up"))
 		var new_tilt_ratio = max(0.1, (1.0 - control_tilt.length()) / 1.0)
-		if current_screen != "color_picker":
+		if !cursor_locked():
 			if tilt_ratio >= 0.95 and new_tilt_ratio < 0.95:
 				touch_check_time = Time.get_ticks_msec() + 300
 				var flick_angle = control_tilt.angle()
@@ -1144,7 +1148,7 @@ func _physics_process(delta):
 		TOUCH_BRIDGE.scale = Vector2(touch_diff.length(), (tilt_ratio * TOUCH_START.scale.x))
 		TOUCH_BRIDGE.look_at(TOUCH_CURRENT.global_position)
 
-	if current_screen == "color_picker":
+	if cursor_locked():
 		return
 
 	if (confirm_swapped and Input.is_action_just_pressed("back")) or (!confirm_swapped and Input.is_action_just_pressed("select")):

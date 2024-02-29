@@ -26,7 +26,6 @@ AndroidInterface="*res://android_interface.tscn"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/size/mode=3
 window/handheld/orientation=6
 
 [editor_plugins]

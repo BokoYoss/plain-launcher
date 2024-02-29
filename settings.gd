@@ -38,7 +38,7 @@ func on_storage_config_failure(msg):
 	pass
 
 func show_visual_settings():
-	var visual_settings = ["Change size", "Cover size", "Cover border", "Cover opacity", "Drop shadow", "System borders: " + str(Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER)), "Title orientation", "Left margin", "Top margin", "Letter outlines", "Change font", "Change background color", "Change foreground color"]
+	var visual_settings = ["Change size", "Cover size", "Cover position", "Cover border", "Cover opacity", "Drop shadow", "System borders: " + str(Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER)), "Title orientation", "Left margin", "Top margin", "Letter outlines", "Change font", "Change background color", "Change foreground color"]
 	var hide_toggle = "Show hidden items"
 	if Global.show_hidden:
 		hide_toggle = "Hide hidden items"
@@ -96,6 +96,11 @@ func _process(delta):
 		elif "cover size" == selected:
 			Global.cycle_cover_sizes()
 			show_visual_settings()
+			return
+		elif "cover position" == selected:
+			Global.clear_visible("Set cover position.")
+			Global.setting_subscreen = "visuals"
+			Global.go_to("art_placer")
 			return
 		elif "cover border" == selected:
 			Global.cycle_border_thickness()
@@ -185,12 +190,12 @@ func _process(delta):
 		elif "storage" in selected:
 			Global.go_to("file_browser")
 		elif "background" in selected:
-			Global.clear_visible("Select BACKGROUND color.")
+			Global.clear_visible("Select BACKGROUND color.", ["START: Default"])
 			Global.color_picker = "background"
 			Global.setting_subscreen = "visuals"
 			Global.go_to("color_picker")
 		elif "foreground" in selected:
-			Global.clear_visible("Select TEXT color.")
+			Global.clear_visible("Select TEXT color.", ["START: Default"])
 			Global.color_picker = "foreground"
 			Global.setting_subscreen = "visuals"
 			Global.go_to("color_picker")
