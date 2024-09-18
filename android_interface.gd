@@ -67,6 +67,10 @@ func launch_package(package_name):
 	print("Trying to launch package " + str(package_name))
 	_android_plugin.launchPackage(package_name)
 
+func app_settings(package_name):
+	print("Opening settings for " + str(package_name))
+	_android_plugin.openAppSpecificSettings(package_name)
+
 func choose_file():
 	_android_plugin.chooseFile()
 

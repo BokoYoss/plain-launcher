@@ -1,5 +1,5 @@
 {
-	"EMULATOR": ["drastic", "retroarch", "retroarch64", "retroarch32"],
+	"EMULATOR": ["drastic", "melonds", "retroarch", "retroarch64", "retroarch32"],
 	"CORE": ["melonds", "desmume", "desmume2015"],
 	"EXTENSIONS": ["dsi", "nds", "zip", "7z"]
 }

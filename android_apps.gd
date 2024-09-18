@@ -24,7 +24,7 @@ func view_all():
 	Global.store_position()
 	Global.android_subscreen = "all"
 	populate_content()
-	Global.title.text = "All Android apps"
+	Global.title.text = "Apps"
 
 func clean_options():
 	var hidden = []

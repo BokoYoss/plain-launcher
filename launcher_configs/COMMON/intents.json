@@ -121,5 +121,13 @@
 		"componentPackage": "io.recompiled.redream",
 		"componentClass": "io.recompiled.redream.MainActivity",
 		"data": "<GAME>"
-	}
+	},
+	"melonds": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "me.magnum.melonds",
+		"componentClass": "me.magnum.melonds.ui.emulator.EmulatorActivity",
+		"extras": {
+			"PATH": "<GAME>"
+		}
+		}
 }

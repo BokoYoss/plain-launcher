@@ -53,6 +53,8 @@ func populate_content():
 		settings.append(fave_toggle)
 	else:
 		settings.append("Additional game paths")
+	if Global.special_item.system == "ANDROID":
+		settings.append("App settings")
 	settings.append("Look for cover art")
 	settings.append(hide_toggle)
 	refresh_disk_settings()
@@ -129,6 +131,8 @@ func _process(delta):
 			Global.toggle_hidden()
 		elif "favorites" in selected:
 			Global.toggle_favorite()
+		elif "app settings" in selected:
+			AndroidInterface.app_settings(Global.special_item.absolute_path)
 		elif selected == "additional game paths":
 			Global.go_to("path_adder")
 			return

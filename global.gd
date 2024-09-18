@@ -74,6 +74,8 @@ var current_screen = ""
 
 var title: Label = null
 var message: Label = null
+@onready var time: Label = $SlotHolder/Title/Time
+var time_dict = {}
 @onready var fade = $FarFade
 @onready var slot_holder = $SlotHolder
 var message_queue = []
@@ -177,6 +179,7 @@ func dir_walker(root):
 			dir_walker(maybe_dir.get_current_dir())
 		item = dir.get_next()
 
+
 func _ready():
 	window_width = DisplayServer.screen_get_size(DisplayServer.window_get_current_screen()).x
 	window_height = DisplayServer.screen_get_size(DisplayServer.window_get_current_screen()).y
@@ -224,6 +227,14 @@ func _ready():
 		Global.swap_confirm_key()
 
 	OS.request_permissions()
+
+	time_update()
+	var time_timer = Timer.new()
+	add_child(time_timer)
+	time_timer.wait_time = 5
+	time_timer.connect("timeout", time_update)
+	time_timer.one_shot = false
+	time_timer.start()
 
 	show_message("Welcome to PlainLauncher!")
 	go_to_main()
@@ -278,10 +289,15 @@ func set_up_slots():
 	title.size.y = 0
 	title.horizontal_alignment = get_setting(CFG_VISUAL_TITLE_ORIENTATION)
 	title.add_theme_constant_override("outline_size", outline_thickness)
-	title.position.y = get_setting(CFG_TOP_MARGIN)
+	title.position.y = get_setting(CFG_TOP_MARGIN) + scaled_text_height * 0.25
 	title.position.x = left_bound
 	title.uppercase = true
-	title.set("theme_override_font_sizes/font_size", scaled_text_height)
+	title.set("theme_override_font_sizes/font_size", scaled_text_height * 0.75)
+
+	time.set("theme_override_font_sizes/font_size", scaled_text_height / 3)
+	time.size = title.size
+	time.position.y = -scaled_text_height / 4
+	time.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 	message = $SlotHolder/Body.duplicate()
 	add_child.call_deferred(message)
@@ -316,14 +332,14 @@ func set_up_slots():
 		slot_holder.add_child.call_deferred(new_slot)
 		visible_slots.append(new_slot)
 		new_slot.add_theme_constant_override("outline_size", outline_thickness)
-		new_slot.position.y = (title.position.y + scaled_text_height / 2.0) + i * (scaled_text_height * 0.5)
+		new_slot.position.y = (title.position.y + scaled_text_height * 0.25) + i * (scaled_text_height * 0.5)
 		var fav_indicator = $Pixel.duplicate()
 		new_slot.add_child.call_deferred(fav_indicator)
-		fav_indicator.position.x = -left_bound / 2.0
+		fav_indicator.position.x = left_bound
 		if new_slot.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT:
 			fav_indicator.position.x = new_slot.size.x + left_bound / 2.0
 		slot_size = new_slot.size
-		fav_indicator.position.y = text_height * get_setting(CFG_SCALER) / 4.0
+		fav_indicator.position.y = (text_height * get_setting(CFG_SCALER) / 4.0) + (fav_indicator.scale.y / 2.0)
 		fav_indicators.append(fav_indicator)
 
 	message.visible = false
@@ -349,6 +365,7 @@ func refresh_fonts():
 	if font == null:
 		return
 	title.add_theme_font_override("font", font)
+	time.add_theme_font_override("font", font)
 	for slot in visible_slots:
 		slot.add_theme_font_override("font", font)
 
@@ -681,7 +698,8 @@ func show_options(offset=0):
 		set_slot(i, option_list[i+offset].clean)
 		fav_indicators[i].visible = false
 		if favorites_list.has(option_list[i+offset].absolute_path):
-			fav_indicators[i].visible = true
+			fav_indicators[i].visible = false
+			visible_slots[i].text = "*" + visible_slots[i].text
 	if post_draw_callback != null:
 		post_draw_callback.call()
 
@@ -931,7 +949,7 @@ func get_system_settings(system_for_settings=Global.subscreen):
 		return JSON.parse_string(FileAccess.get_file_as_string(current_settings_path))
 	else:
 		# No settings saved, use the first option from the options lists
-		return build_system_settings_from_options()
+		return build_system_settings_from_options(system_for_settings)
 
 func get_paths_filepath():
 	var system = Global.subscreen
@@ -1034,6 +1052,20 @@ func on_scroll():
 
 func cursor_locked():
 	return current_screen == "color_picker" or current_screen == "art_placer"
+
+
+func time_update():
+	time_dict = Time.get_datetime_dict_from_system()
+	var hour_buffer = ""
+	var hour = time_dict.get("hour")
+	if hour < 10:
+		hour_buffer = "0"
+	var minute_buffer = ""
+	var minute = time_dict.get("minute")
+	if minute < 10:
+		minute_buffer = "0"
+	time.text = hour_buffer + str(hour) + ":" + minute_buffer + str(minute)
+
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
@@ -1356,6 +1388,10 @@ func press_back():
 	else:
 		Input.action_press("back")
 		Input.action_release("back")
+
+func _notification(what):
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		press_back()
 
 func _input(event):
 	if !touch_enabled:
