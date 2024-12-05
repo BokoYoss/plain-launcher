@@ -1037,6 +1037,8 @@ func cursor_locked():
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
+	if message == null:
+		return
 	if message.modulate.a > 0:
 		message.modulate.a -= delta / 2.0
 	elif !message_queue.is_empty():
