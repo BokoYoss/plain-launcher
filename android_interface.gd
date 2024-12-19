@@ -49,6 +49,16 @@ func create_external_storage():
 	print("Creating external storage..")
 	_android_plugin.createStorage("external")
 
+func has_file_permissions():
+	var has_permissions = _android_plugin.hasFilePermissions()
+	if !has_permissions:
+		print("Missing file permissions")
+	return has_permissions
+
+func request_permissions():
+	print("Requesting permissions..")
+	_android_plugin.requestFilePermissions()
+
 func launch_intent(serialized_intent: String):
 	print("Trying to launch [intent]:" + serialized_intent)
 	return _android_plugin.launchIntent(serialized_intent)
@@ -56,9 +66,9 @@ func launch_intent(serialized_intent: String):
 func launch_default_app(category: String):
 	return _android_plugin.launchDefaultApp(category)
 
-func look_for_art(game: String, system: String):
-	print("Looking for art for " + game + " (" + system + ")")
-	return _android_plugin.launchBrowserForDownload(game, system)
+func look_for_art(game: String, system: String, source: String = "google"):
+	print("Looking for art for " + Global.ALIAS_MAP.get(game, game) + " (" + system + ") on " + source)
+	return _android_plugin.launchBrowserForDownload(Global.ALIAS_MAP.get(game, game).split("[")[0], system, source.to_lower())
 
 func get_app_list():
 	return JSON.parse_string(_android_plugin.getInstalledAppList())

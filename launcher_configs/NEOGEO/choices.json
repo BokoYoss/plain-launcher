@@ -1,5 +1,5 @@
 {
 	"EMULATOR": ["retroarch", "retroarch64", "retroarch32"],
-	"CORE": ["fbneo"],
+	"CORE": ["mame2003", "mame2003_plus", "geolith", "fbneo"],
 	"EXTENSIONS": ["zip", "7z"]
 }

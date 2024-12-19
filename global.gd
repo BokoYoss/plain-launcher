@@ -107,6 +107,7 @@ var frame = 0
 const OPTIONS_MAKER = preload("res://option.tscn")
 @onready var null_option = OPTIONS_MAKER.instantiate()
 var clean_regex = null
+var normalize_regex = null
 
 var color_picker = "background"
 @onready var BACKDROP = $ColorRect
@@ -154,7 +155,7 @@ var font = null
 var free_version = false
 
 # Cover art
-@onready var cover = $BoxContainer
+@onready var cover := $BoxContainer
 var cover_art: Sprite2D = null
 var drop_shadow: Sprite2D = null
 var border: Sprite2D = null
@@ -163,6 +164,8 @@ var border_thickness_text = ""
 var cover_size_text = ""
 var drop_shadow_text = ""
 var img_texture_override = null
+
+var clean_names = {}
 
 # Called when the node enters the scene tree for the first time.
 func dir_walker(root):
@@ -193,7 +196,10 @@ func _ready():
 	BACKDROP.modulate = get_setting(CFG_BG_COLOR)
 
 	clean_regex = RegEx.new()
-	clean_regex.compile("\\s*\\(.+\\)\\s*")
+	clean_regex.compile("\\s*\\(.+\\)\\s*|\\s*\\[.+\\]\\s*|T.Eng+\\$|\\.nkit")
+
+	normalize_regex = RegEx.new()
+	normalize_regex.compile("[^a-z0-9]")
 
 	get_tree().get_root().size_changed.connect(resize)
 
@@ -585,6 +591,9 @@ func refresh_art(image_path=Global.get_image_path()):
 			cover_art.texture = img_texture_override
 		else:
 			var image = Image.load_from_file(image_path)
+			if image == null:
+				cover.visible = false
+				return
 			cover_art.texture = ImageTexture.create_from_image(image)
 		#var effective_height_offset = title.size.y
 		#if get_setting(CFG_SCALER) <= 0.5 or get_setting(CFG_VISUAL_COVER_SIZE).x >= 1.0:
@@ -601,6 +610,7 @@ func refresh_art(image_path=Global.get_image_path()):
 		var scale_ratio = min(scale_ratio_x, scale_ratio_y)
 
 		cover_art.scale = Vector2(scale_ratio, scale_ratio)
+		cover.z_index = 4000
 
 		if get_setting(CFG_VISUAL_BORDER) != Vector2.ZERO:
 			border.visible = true
@@ -707,6 +717,8 @@ func add_favorite():
 	if current_screen == "special":
 		item = Global.special_item
 	Global.populate_favorites()
+	if item.favorite_dir or Global.favorites_list.has(item.absolute_path) or Global.subscreen == "favorites":
+		return
 	var fav_dir_path = Global.root_path + Global.PATH_GAMES + "FAVORITES"
 	var fav_dir = DirAccess.open(fav_dir_path)
 	if not fav_dir:
@@ -729,15 +741,18 @@ func remove_favorite():
 	if not fav_dir:
 		return
 	var fav_system = Global.subscreen
-	if Global.subscreen == "FAVORITES":
+	var removed_from_favorite_list = item.favorite_dir
+	if removed_from_favorite_list:
 		print("REMOVING FAVORITE " + item.filename)
-		fav_dir.remove(Global.get_selected().filename)
+		fav_dir.remove(item.filename)
 	else:
 		var fav_name = favorite_name(fav_system, item.clean)
 		print("REMOVING FAVORITE " + fav_name)
 		fav_dir.remove(fav_name)
 	Global.store_position()
 	Global.populate_favorites()
+	if removed_from_favorite_list:
+		Global.go_to_main()
 
 func toggle_favorite():
 	var item = Global.get_selected()
@@ -762,7 +777,7 @@ func hide_item():
 	print("HIDE " + item.absolute_path)
 	HIDDEN_LIST[item.absolute_path] = true
 	update_list_file_contents("hidden", HIDDEN_LIST.keys())
-	print(get_list_file_contents())
+	#print(get_list_file_contents())
 	show_options(scroll_offset)
 
 func unhide_item():
@@ -799,7 +814,7 @@ func list_multiple_paths_combined(paths):
 	restore_position()
 	highlight_selection()
 
-func list_directory_contents(directory: DirAccess, dirs_only=true, special=[]):
+func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], skip_empty_dirs=false):
 	if directory == null:
 		return
 	print("LIST CONTENTS " + directory.get_current_dir() + " DIRS_ONLY: " + str(dirs_only))
@@ -814,11 +829,14 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[]):
 				pass
 			elif dirs_only:
 				if directory.dir_exists(file_name):
+					if skip_empty_dirs and directory.get_files_at(directory.get_current_dir() + "/" + file_name).is_empty() and directory.get_directories_at(directory.get_current_dir() + "/" + file_name).is_empty():
+						print("Skipping empty directory " + directory.get_current_dir() + "/" + file_name)
 					# Only include directories with something in them
 					#var try_dir = DirAccess.open(current_directory + "/" + file_name)
 					#if not try_dir.get_files().is_empty():
 						#file_names_unsorted.append(file_name)
-					file_names.append(file_name)
+					else:
+						file_names.append(file_name)
 			else:
 				if not directory.dir_exists(file_name):
 					file_names.append(file_name)
@@ -828,13 +846,22 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[]):
 	else:
 		file_names = directory.get_files()
 		system = Global.subscreen
+	var unique_paths = get_system_unique_paths()
+	for path in unique_paths.keys():
+		if FileAccess.file_exists(directory.get_current_dir() + "/" + path):
+			file_names.append(path)
+			ALIAS_MAP[clean_regex.sub(path.get_basename(), "", true)] = unique_paths[path]
+			#print("Adding unique path [" + clean_regex.sub(path.get_basename(), "") + "=" + unique_paths[path] + "]")
 	for special_file in special:
 		file_names.push_front(special_file)
 	for file in file_names:
 		var option = OPTIONS_MAKER.instantiate()
 		option.filename = file
 		option.absolute_path = directory.get_current_dir() + "/" + file
-		option.clean = clean_regex.sub(file.get_basename(), "").replace(".nkit", "")
+		if !clean_names.has(file):
+			var cleaned = clean_regex.sub(file.get_basename(), "", true)
+			clean_names[file] = ALIAS_MAP.get(cleaned, cleaned)
+		option.clean = clean_names.get(file)
 
 		var use_system = system
 		if dirs_only:
@@ -907,6 +934,16 @@ func get_system_settings_options(system_for_settings=Global.subscreen):
 	if options_string == null or options_string == "":
 		return {}
 	return JSON.parse_string(FileAccess.get_file_as_string(options_path))
+
+func get_system_unique_paths(system_for_settings=Global.subscreen):
+	var uniques_path = Global.root_path + "/" + Global.PATH_CONFIG + "/" + system_for_settings + "/unique_paths.json"
+	print("GET UNIQUE PATHS AT " + uniques_path)
+	if not FileAccess.file_exists(uniques_path):
+		return {}
+	var uniques_string = FileAccess.get_file_as_string(uniques_path)
+	if uniques_string == null or uniques_string == "":
+		return {}
+	return JSON.parse_string(FileAccess.get_file_as_string(uniques_path))
 
 func get_systemwide_settings(for_system):
 	var current_settings_path = Global.root_path + "/" + Global.PATH_CONFIG + "/" + for_system + "/config.json"
@@ -1340,7 +1377,7 @@ func get_image_path(selected=Global.get_selected()):
 		game_title = game_path.split("/")[-1].get_basename()
 		system_in_question = Global.get_selected().filename.split("] ")[0].replace("[", "")
 	if game_title == system_in_question:
-		return  str(Global.root_path + Global.PATH_IMAGES + system_in_question + ".png").replace("//", "/")
+		return str(Global.root_path + Global.PATH_IMAGES + system_in_question + ".png").replace("//", "/")
 	return str(Global.root_path + Global.PATH_IMAGES + system_in_question + "/" + game_title + ".png").replace("//", "/")
 
 func press_confirm():

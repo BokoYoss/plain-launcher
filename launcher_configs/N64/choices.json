@@ -1,5 +1,5 @@
 {
-	"EMULATOR": ["retroarch", "retroarch64", "retroarch32"],
+	"EMULATOR": ["retroarch", "retroarch64", "retroarch32", "mupen64plus", "mupen64plus_ae", "mupen64plus_fz", "mupen64plus_fz_pro"],
 	"CORE": ["parallel_n64", "mupen64plus_next", "mupen64plus_next_gles2", "mupen64plus_next_gles3"],
 	"EXTENSIONS": ["n64", "z64", "zip", "7z"]
 }

@@ -63,6 +63,7 @@ func _process(delta):
 		if Global.get_selected().favorite_dir:
 			# get the system in question from the path
 			game_path = FileAccess.get_file_as_string(selected.absolute_path)
+
 			#var system_in_question = game_path.replace(Global.root_path + Global.PATH_GAMES, "").split("/")[0]
 			var system_in_question = selected.system
 			print("Using FAVORITES launch with " + system_in_question + " path: " + game_path)

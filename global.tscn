@@ -17,10 +17,6 @@ script = ExtResource("1_t5b2j")
 offset_right = 40.0
 offset_bottom = 40.0
 
-[node name="BoxContainer" type="BoxContainer" parent="."]
-offset_right = 40.0
-offset_bottom = 40.0
-
 [node name="TouchPoints" type="Control" parent="."]
 visible = false
 layout_mode = 3
@@ -65,6 +61,11 @@ theme_override_constants/shadow_offset_y = 0
 theme_override_fonts/font = ExtResource("2_k2p8q")
 theme_override_font_sizes/font_size = 128
 text_overrun_behavior = 3
+
+[node name="BoxContainer" type="BoxContainer" parent="."]
+z_as_relative = false
+offset_right = 40.0
+offset_bottom = 40.0
 
 [node name="FarFade" type="TextureRect" parent="."]
 visible = false

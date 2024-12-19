@@ -48,17 +48,22 @@ func populate_content():
 		hide_toggle = "Unhide"
 	if !Global.special_item.is_dir:
 		var fave_toggle = "Add to favorites"
-		if Global.favorites_list.get(Global.special_item.absolute_path, false):
+		if Global.favorites_list.get(Global.special_item.absolute_path, false) or Global.special_item.favorite_dir:
 			fave_toggle = "Remove from favorites"
 		settings.append(fave_toggle)
 	else:
 		settings.append("Additional game paths")
-	settings.append("Look for cover art")
 	settings.append(hide_toggle)
 	refresh_disk_settings()
 	if not system_settings.is_empty():
 		settings.append_array(system_settings.keys())
 		settings.append("RESTORE DEFAULTS")
+	#settings.append("Look for cover art automatically")
+	settings.append("Look for cover art on Google")
+	settings.append("Look for cover art on DuckDuckGo")
+	settings.append("Look for cover art on TGDB")
+	settings.append("Look for cover art on Launchbox")
+	settings.append("Look for cover art on SteamGridDB")
 	Global.clear_visible("Options - " + Global.special_item.clean, settings)
 	show_image()
 	Global.refresh_art()
@@ -132,14 +137,25 @@ func _process(delta):
 		elif selected == "additional game paths":
 			Global.go_to("path_adder")
 			return
-		elif "cover" in selected:
+		elif "automatically" in selected:
+			pending_cover_download = true
+			if download_dir == null:
+				download_dir = DirAccess.open(download_dir_path)
+			if download_dir != null:
+				current_downloaded_list = download_dir.get_files()
+
+			get_normalized_art()
+			return
+		elif "cover art" in selected:
 			pending_cover_download = true
 			if download_dir == null:
 				download_dir = DirAccess.open(download_dir_path)
 			if download_dir != null:
 				# get the list of files currently downloaded so we can find new ones
 				current_downloaded_list = download_dir.get_files()
-			AndroidInterface.look_for_art(Global.special_item.clean, Global.special_item.system)
+
+			var source = selected.replace("look for cover art on ", "")
+			AndroidInterface.look_for_art(Global.special_item.clean, Global.special_item.system, source)
 		elif selected == "extensions":
 			Global.go_to("extension_selector")
 			return
@@ -214,29 +230,54 @@ func show_image(path=Global.get_image_path(Global.special_item)):
 	#var scale_ratio = min(scale_ratio_x, scale_ratio_y)
 	#pending_image_sprite.scale = Vector2(scale_ratio, scale_ratio)
 
+func get_normalized_art():
+	var zip_reader = ZIPReader.new()
+	var zip_path = Global.root_path + "/Imgs/IMAGES.zip"
+	var error = zip_reader.open(zip_path)
+	if error != OK:
+		Global.clear_visible("Failed to open image pack.", ["Place pack at", zip_path])
+		print("Failed to open image ZIP: " + error_string(error))
+		return
+	var normalized = "/" + Global.special_item.system + "/" + Global.normalize_regex.sub(Global.special_item.clean.to_lower(), "", true) + ".png"
+	print("Looking for " + Global.special_item.clean + " in image pack at " + normalized)
+	var zip_file := zip_reader.read_file(normalized)
+	if zip_file.is_empty():
+		var path = download_dir_path + "/" + Global.special_item.clean + ".png"
+		var image_file = FileAccess.open(path, FileAccess.WRITE)
+		image_file.store_buffer(zip_file)
+		print("Copied " + normalized + " to " + path)
+		access_downloaded_art()
+	else:
+		Global.clear_visible("Failed to find image in pack.")
+		print("Failed to find image in pack.")
+		return
+
+func access_downloaded_art():
+	pending_cover_download = false
+	download_dir = DirAccess.open(download_dir_path)
+	if download_dir != null:
+		var newest = null
+		var newest_time = -1
+		for file in download_dir.get_files():
+			if file in current_downloaded_list:
+				continue
+			var modtime = FileAccess.get_modified_time(download_dir.get_current_dir() + "/" + file)
+			if modtime > newest_time:
+				newest_time = modtime
+				newest = file
+		if newest == null:
+			Global.clear_visible("No image found.")
+			print("Failed to find files in download dir")
+			return
+		download_path = download_dir.get_current_dir() + "/" + newest
+
+		show_image(download_path)
+		Global.clear_visible("Use this image?", ["Yes", "No"])
+		image_pending = true
+		return
+	else:
+		Global.clear_visible("Failure", ["Failed to access downloaded art location."])
+
 func _notification(what):
 	if what == MainLoop.NOTIFICATION_APPLICATION_RESUMED and pending_cover_download:
-		pending_cover_download = false
-		download_dir = DirAccess.open(download_dir_path)
-		if download_dir != null:
-			var newest = null
-			var newest_time = -1
-			for file in download_dir.get_files():
-				if file in current_downloaded_list:
-					continue
-				var modtime = FileAccess.get_modified_time(download_dir.get_current_dir() + "/" + file)
-				if modtime > newest_time:
-					newest_time = modtime
-					newest = file
-			if newest == null:
-				Global.clear_visible("No image download found.", ["Back", "Look for cover again"])
-				print("Failed to find files in download dir")
-				return
-			download_path = download_dir.get_current_dir() + "/" + newest
-
-			show_image(download_path)
-			Global.clear_visible("Use this image?", ["Yes", "No"])
-			image_pending = true
-			return
-		else:
-			Global.clear_visible("Failure", ["Failed to access downloaded art location."])
+		access_downloaded_art()
