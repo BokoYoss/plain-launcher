@@ -17,7 +17,7 @@ func populate_content(msg_override=null):
 	Global.refresh_alias()
 	Global.populate_favorites()
 	var special = ["ANDROID", "FAVORITES"] # special directories placed at top
-	Global.list_directory_contents(system_dir, true, special)
+	Global.list_directory_contents(system_dir, true, special, true)
 	Global.show_message("SELECT for GLOBAL options", true)
 
 	if msg_override != null:

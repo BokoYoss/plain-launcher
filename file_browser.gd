@@ -10,12 +10,20 @@ var start_time = null
 func _ready():
 	#title.set_anchors_preset(Control.PRESET_CENTER)
 	if OS.get_name() == "Android":
+		#if true:
+			#request_permissions()
+		#else:
+			#storage_select()
+		#request_permissions()
 		storage_select()
 		AndroidInterface.connect("configured_storage", get_storage_selection)
 		AndroidInterface.connect("configure_storage_failure", on_storage_config_failure)
 	else:
 		populate_files("/", true)
 	start_time = Time.get_ticks_msec()
+
+func request_permissions():
+	Global.clear_visible("Permissions needed", ["Grant file permissions", "Please ensure file access is allowed."])
 
 func get_storage_selection(string):
 	print("Attempting to use " + string)
@@ -52,7 +60,7 @@ func get_storage_selection(string):
 
 func on_storage_config_failure(message):
 	print("Failure when setting up storage")
-	storage_select("Failed to set storage: " + message)
+	request_permissions()
 
 func populate_files(root, dir_only=false):
 	var new_dir = DirAccess.open(root)
@@ -179,7 +187,7 @@ func set_up_root():
 	return true
 
 func storage_select(title_override=null):
-	Global.clear_visible("Select primary storage", ["Use on-device storage", "Use removable storage", "Open storage selector"])
+	Global.clear_visible("Select primary storage", ["Grant file permissions", "Use on-device storage", "Use removable storage", "Open storage selector"])
 	if (title_override != null):
 		Global.title.text = title_override
 	Global.show_message("")
@@ -192,6 +200,9 @@ func _process(delta):
 		if Global.confirming:
 			Global.confirming = false
 			if Global.get_selected().clean.to_lower() == "no":
+				storage_select()
+			elif Global.get_selected().clean.to_lower() == "grant file permissions":
+				AndroidInterface.request_permissions()
 				storage_select()
 			elif Global.get_selected().clean.to_lower() == "yes":
 				if current_dir == null:

@@ -129,5 +129,29 @@
 		"extras": {
 			"PATH": "<GAME>"
 		}
-		}
+	},
+	"mupen64plus": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.mupen64plusae.v3.alpha",
+		"componentClass": "paulscode.android.mupen64plusae.SplashActivity",
+		"data": "<GAME>"
+	},
+	"mupen64plus_ae": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.mupen64plusae",
+		"componentClass": "paulscode.android.mupen64plusae.MainActivity",
+		"data": "<GAME>"
+	},
+	"mupen64plus_fz": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.mupen64plusae.v3.fzurita",
+		"componentClass": "paulscode.android.mupen64plusae.SplashActivity",
+		"data": "<GAME>"
+	},
+	"mupen64plus_fz_pro": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.mupen64plusae.v3.fzurita.pro",
+		"componentClass": "paulscode.android.mupen64plusae.SplashActivity",
+		"data": "<GAME>"
+	}
 }
