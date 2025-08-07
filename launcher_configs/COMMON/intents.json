@@ -66,10 +66,24 @@
 		"componentClass": "org.dolphinemu.dolphinemu.ui.main.MainActivity",
 		"data": "<GAME>"
 	},
+	"azahar": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "io.github.lime3ds.android",
+		"componentClass": "org.citra.citra_emu.activities.EmulationActivity",
+		"providedFile": "<GAME>"
+	},
 	"citra": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.citra.emu",
-		"componentClass": "org.citra.emu.ui.main.MainActivity",
+		"componentClass": "org.citra.emu.ui.EmulationActivity",
+		"extras": {
+			"GamePath": "<GAME>"
+		}
+	},
+	"citra_weihuoya": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "org.citra.emu",
+		"componentClass": "org.citra.emu.ui.EmulationActivity",
 		"extras": {
 			"GamePath": "<GAME>"
 		}
@@ -145,5 +159,17 @@
 		"componentPackage": "org.mupen64plusae.v3.fzurita.pro",
 		"componentClass": "paulscode.android.mupen64plusae.SplashActivity",
 		"data": "<GAME>"
+	},
+	"yuzu": {
+		"action": "android.nfc.action.TECH_DISCOVERED",
+		"componentPackage": "org.yuzu.yuzu_emu",
+		"componentClass": "org.yuzu.yuzu_emu.activities.EmulationActivity",
+		"providedFile": "<GAME>"
+	},
+	"skyline": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "skyline.emu",
+		"componentClass": "emu.skyline.EmulationActivity",
+		"providedFile": "<GAME>"
 	}
 }

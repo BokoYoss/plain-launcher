@@ -8,12 +8,18 @@ func _ready():
 		_android_plugin = Engine.get_singleton(_plugin_name)
 		_android_plugin.connect("configure_storage_location", storage_selection)
 		_android_plugin.connect("image_downloaded", image_downloaded)
+		_android_plugin.connect("failure_to_launch", failed_to_launch)
 	else:
 		printerr("Couldn't find plugin " + _plugin_name)
 
 signal configured_storage(selection)
 signal configure_storage_failure(message)
 signal got_image(path)
+signal failure_to_launch(message)
+
+func failed_to_launch(message):
+	if Global.pending_game != "":
+		Global.go_to("failure_screen")
 
 func image_downloaded(path):
 	print("IMAGE DOWNLOADED NOWWWWW " + path)
@@ -76,6 +82,10 @@ func get_app_list():
 func launch_package(package_name):
 	print("Trying to launch package " + str(package_name))
 	_android_plugin.launchPackage(package_name)
+
+func app_settings(package_name):
+	print("Opening settings for " + str(package_name))
+	_android_plugin.openAppSpecificSettings(package_name)
 
 func choose_file():
 	_android_plugin.chooseFile()

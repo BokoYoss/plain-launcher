@@ -1,3 +1,5 @@
 /genesis
 /Roms/Sega Genesis (MD)
 /Roms/MD
+/ROMs/genesis
+/ROMs/megadrive

@@ -1,5 +1,5 @@
 {
-	"EMULATOR": ["citra", "retroarch", "retroarch64", "retroarch32"],
+	"EMULATOR": ["citra", "citra_weihuoya", "azahar", "retroarch", "retroarch64", "retroarch32"],
 	"CORE": ["citra2018", "citra_canary", "citra"],
 	"EXTENSIONS": ["3ds", "3dsx", "elf", "axf", "cci", "cxi", "app", "cia"]
 }

@@ -75,8 +75,12 @@ func _process(delta):
 		# TODO add game-specific settings?
 		var system_settings = Global.get_system_settings(selected.system)
 		print("Launching [game] " + game_path + " with [settings] " + str(system_settings))
-		var launch_message = launcher.launch_with_settings(system_settings, game_path)
-		Global.show_message(launch_message, true)
+		var launch_message: String = launcher.launch_with_settings(system_settings, game_path)
+		#Global.clear_visible("Launching " + selected)
+		#Global.refresh_art("")
+		if launch_message != "":
+			Global.failure_message = launch_message
+			Global.go_to("failure_screen")
 	if Global.back_pressed():
 		Global.go_to("system_browser")
 		return

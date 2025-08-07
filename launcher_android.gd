@@ -15,12 +15,20 @@ func launch_with_settings(settings: Dictionary, game_path: String = ""):
 
 	var launch_config: Dictionary = launch_configs.get(emulator)
 	if game_path == "":
+		print("Trying to launch default app for " + launch_config['componentPackage'])
+		AndroidInterface.launch_package(launch_config['componentPackage'])
+		return
 		if "<GAME>" in launch_config.get("data", ""):
 			launch_config.erase("data")
 		for extra_key in launch_config.get("extras", {}):
 			var value = launch_config.get("extras").get(extra_key)
 			if "<GAME>" in value:
 				launch_config.get("extras").erase(extra_key)
+
+	Global.pending_intent = launch_config['componentPackage']
+	Global.pending_game = game_path
+	Global.pending_launch = settings
+	Global.store_positions_files()
 
 	var intent = JSON.stringify(launch_config).replace("<GAME>", game_path).replace("<CORE>", core)
 	print("PLAIN LAUNCH: " + intent)

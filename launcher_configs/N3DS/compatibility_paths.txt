@@ -1,1 +1,3 @@
 /3ds
+/ROMs/3ds
+/ROMs/n3ds

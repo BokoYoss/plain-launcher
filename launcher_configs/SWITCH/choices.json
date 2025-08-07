@@ -1,0 +1,4 @@
+{
+	"EMULATOR": ["yuzu", "skyline"],
+	"EXTENSIONS": ["nsp", "xci"]
+}

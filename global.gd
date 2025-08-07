@@ -10,6 +10,7 @@ const SETTINGS_FILE = "user://settings.bin"
 var global_settings = null
 
 const CFG_ROOT = "ROOT"
+const CFG_LAST_SCREEN = "LAST_SCREEN"
 const CFG_CONFIRM_SWAP = "SWAP"
 const CFG_BG_COLOR = "COLOR_BG"
 const CFG_FG_COLOR = "COLOR_FG"
@@ -20,6 +21,7 @@ const CFG_FONT = "FONT"
 const CFG_SHOW_ART = "SHOW_ART"
 const CFG_VISUAL_BORDER = "VISUAL_BORDER"
 const CFG_VISUAL_SYSTEM_BORDER = "VISUAL_SYSTEM_BORDER_ENABLED"
+const CFG_VISUAL_BUILTIN_SYSTEM_ART = "VISUAL_BUILTIN_SYSTEM_ART_ENABLED"
 const CFG_VISUAL_DROP_SHOW = "VISUAL_DROP_SHADOW"
 const CFG_VISUAL_COVER_SIZE = "VISUAL_COVER_SIZE"
 const CFG_VISUAL_COVER_OPACITY = "VISUAL_COVER_OPACITY"
@@ -39,9 +41,11 @@ var DEFAULT_SETTINGS = {
 	CFG_BG_COLOR: Color.BLACK,
 	CFG_FG_COLOR: Color("#f5f7fa"),
 	CFG_CAPS_LOCK: false,
+	CFG_LAST_SCREEN: "",
 	CFG_SCALER: 0.25,
 	CFG_VIBRATE: true,
 	CFG_VISUAL_BORDER: Vector2(8, 8),
+	CFG_VISUAL_BUILTIN_SYSTEM_ART: false,
 	CFG_VISUAL_SYSTEM_BORDER: false,
 	CFG_VISUAL_DROP_SHOW: Vector2.ZERO,
 	CFG_VISUAL_COVER_SIZE: Vector2(0.4, 0.6),
@@ -71,6 +75,13 @@ var current_component = null
 var current_directory = ""
 var previous_screen = ""
 var current_screen = ""
+
+var pending_intent = ""
+var pending_game = ""
+var pending_launch = ""
+var last_subscreen = ""
+var can_scroll = true
+var failure_message = ""
 
 var title: Label = null
 var message: Label = null
@@ -204,6 +215,9 @@ func _ready():
 	get_tree().get_root().size_changed.connect(resize)
 
 	set_up_slots()
+	
+	for pad in Input.get_connected_joypads():
+		print("Joy {0}: {1} ({2}) {3}".format([Input.get_joy_guid(pad), pad, Input.get_joy_name(pad)]))
 
 	cover_art = Sprite2D.new()
 	drop_shadow = cover_art.duplicate()
@@ -230,6 +244,8 @@ func _ready():
 		Global.swap_confirm_key()
 
 	OS.request_permissions()
+	
+	get_positions_files()
 
 	show_message("Welcome to PlainLauncher!")
 	go_to_main()
@@ -243,6 +259,30 @@ func get_list_file_contents():
 		if list_file_contents != null:
 			return list_file_contents
 	return {}
+
+func get_positions_files():
+	var last_screen = "user://last_screen.txt"
+	var cursor_position_file = "user://cursor_positions.json"
+	var scroll_offset_file = "user://scroll_offsets.json"
+	if FileAccess.file_exists(last_screen):
+		last_subscreen = FileAccess.get_file_as_string(last_screen)
+	return
+	if FileAccess.file_exists(cursor_position_file):
+		cursor_positions = JSON.parse_string(FileAccess.get_file_as_string(cursor_position_file))
+	if FileAccess.file_exists(scroll_offset_file):
+		scroll_offset = JSON.parse_string(FileAccess.get_file_as_string(scroll_offset_file))
+
+func store_positions_files():
+	var last_screen = "user://last_screen.txt"
+	var cursor_position_file = "user://cursor_positions.json"
+	var scroll_offset_file = "user://scroll_offsets.json"
+	var file = FileAccess.open(last_screen, FileAccess.WRITE)
+	file.store_string(Global.subscreen)
+	print("Storing last subscreen as " + Global.subscreen)
+	file = FileAccess.open(cursor_position_file, FileAccess.WRITE)
+	file.store_string(JSON.stringify(cursor_positions, "   "))
+	file = FileAccess.open(scroll_offset_file, FileAccess.WRITE)
+	file.store_string(JSON.stringify(scroll_offset, "   "))
 
 func update_list_file_contents(key, new_list):
 	var list_file_contents = get_list_file_contents()
@@ -679,6 +719,9 @@ func highlight_selection(next_selection=option_selection):
 		post_draw_callback.call()
 
 func show_options(offset=0):
+	if offset == null:
+		offset = 0
+		scroll_offset = 0
 	if option_list.size() < visible_slots.size():
 		scroll_offset = 0
 		offset = 0
@@ -883,6 +926,8 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], s
 	highlight_selection()
 
 func move_down():
+	if not can_scroll:
+		return
 	if option_selection >= option_list.size() - 1:
 		scroll_offset = 0
 		option_selection = -1
@@ -897,6 +942,8 @@ func move_down():
 	highlight_selection(option_selection+1)
 
 func move_up():
+	if not can_scroll:
+		return
 	if option_selection <= 0:
 		if option_list.size() >= visible_slots.size():
 			scroll_offset = option_list.size() - visible_slots.size()
@@ -1038,18 +1085,22 @@ func store_position():
 		cursor_positions[message.text.to_lower()] = option_selection
 		scroll_offsets[message.text.to_lower()] = scroll_offset
 	else:
-		cursor_positions[title.text.to_lower()] = option_selection
-		scroll_offsets[title.text.to_lower()] = scroll_offset
+		cursor_positions[title.text.to_lower()] = Global.get_selected().absolute_path
 
 func restore_position():
 	if get_stored_cursor_position() != null:
-		option_selection = get_stored_cursor_position()
-		scroll_offset = get_stored_scroll_offset()
-		show_options(scroll_offset)
+		option_selection = 0
+		while option_selection < option_list.size():
+			print("Looking for " + get_stored_cursor_position() + " against " + get_selected().absolute_path)
+			if get_selected().absolute_path == get_stored_cursor_position():
+				break
+			move_down()
+			if option_selection == 0:
+				break
+
 		if not option_list.is_empty() and option_selection >= option_list.size():
 			option_selection = option_list.size() - 1
-	else:
-		show_options(0)
+	show_options(option_selection)
 	highlight_selection(option_selection)
 
 func filter_out_hidden(item):
@@ -1210,6 +1261,8 @@ func _physics_process(delta):
 	# Touch controls for options
 	if visible_slots.is_empty():
 		return
+	if option_selection == 0 and scroll_offset != 0:
+		scroll_offset = 0
 	var curr_slot = visible_slots[option_selection - scroll_offset]
 	if special_allowed() and (control_tilt.x > 0.5 or (confirm_hold_time != null and Time.get_ticks_msec() - confirm_hold_time > 500)):
 		if curr_slot.scale.x < 1.2:
@@ -1377,8 +1430,10 @@ func get_image_path(selected=Global.get_selected()):
 		game_title = game_path.split("/")[-1].get_basename()
 		system_in_question = Global.get_selected().filename.split("] ")[0].replace("[", "")
 	if game_title == system_in_question:
+		if not Global.get_setting(Global.CFG_VISUAL_BUILTIN_SYSTEM_ART):
+			return str(Global.root_path + Global.PATH_IMAGES + system_in_question + "_custom.png").replace("//", "/")
 		return str(Global.root_path + Global.PATH_IMAGES + system_in_question + ".png").replace("//", "/")
-	return str(Global.root_path + Global.PATH_IMAGES + system_in_question + "/" + game_title + ".png").replace("//", "/")
+	return str(str(Global.root_path) + str(Global.PATH_IMAGES) + str(system_in_question) + "/" + str(game_title) + ".png").replace("//", "/")
 
 func press_confirm():
 	if confirm_swapped:

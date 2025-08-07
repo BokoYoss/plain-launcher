@@ -43,7 +43,7 @@ func show_visual_settings():
 	var line_length_example = ""
 	for i in range(0, Global.window_width):
 		line_length_example += "0"
-	var visual_settings = ["Change size", "Cover size", "Cover position", "Cover border", "Cover opacity", "Drop shadow", "System borders: " + str(Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER)), "Title orientation", "Left margin", "Top margin", "Text cutoff: " + LOREM, "Letter outlines", "Change font", "Change background color", "Change foreground color"]
+	var visual_settings = ["Change size", "Cover size", "Cover position", "Cover border", "Cover opacity", "Drop shadow", "System Art: " + str(Global.get_setting(Global.CFG_VISUAL_BUILTIN_SYSTEM_ART)), "System borders: " + str(Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER)), "Title orientation", "Left margin", "Top margin", "Text cutoff: " + LOREM, "Letter outlines", "Change font", "Change background color", "Change foreground color"]
 	var hide_toggle = "Show hidden items"
 	if Global.show_hidden:
 		hide_toggle = "Hide hidden items"
@@ -61,8 +61,10 @@ func show_visual_settings():
 	show_example_art()
 
 func show_example_art():
-	var rand_art = randi() % 12
-	Global.img_texture_override = $ExampleArt.get_sprite_frames().get_frame_texture("default",rand_art)
+	var new_rand_art = randi() % 12
+	while (new_rand_art == $ExampleArt.frame):
+		new_rand_art = randi() % 12
+	Global.img_texture_override = $ExampleArt.get_sprite_frames().get_frame_texture("default",new_rand_art)
 
 func on_scroll():
 	if Global.title.text == "Visual Settings":
@@ -113,6 +115,10 @@ func _process(delta):
 			return
 		elif "system borders" in selected:
 			Global.store_setting(Global.CFG_VISUAL_SYSTEM_BORDER, !Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER))
+			show_visual_settings()
+			return
+		elif "system art" in selected:
+			Global.store_setting(Global.CFG_VISUAL_BUILTIN_SYSTEM_ART, !Global.get_setting(Global.CFG_VISUAL_BUILTIN_SYSTEM_ART))
 			show_visual_settings()
 			return
 		elif "drop shadow" == selected:

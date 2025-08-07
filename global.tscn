@@ -1,6 +1,6 @@
 [gd_scene load_steps=6 format=3 uid="uid://bosfmsfigw4w"]
 
-[ext_resource type="Script" path="res://global.gd" id="1_t5b2j"]
+[ext_resource type="Script" uid="uid://n2kt1yycdy1j" path="res://global.gd" id="1_t5b2j"]
 [ext_resource type="FontFile" uid="uid://bxogra0srflo1" path="res://launcher_configs/COMMON/fonts/Rubik/Rubik-Medium.ttf" id="2_k2p8q"]
 [ext_resource type="Texture2D" uid="uid://bwknk1e550p7p" path="res://sprites/pixel.png" id="3_3tr3c"]
 

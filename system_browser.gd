@@ -16,8 +16,8 @@ func populate_content(msg_override=null):
 
 	Global.refresh_alias()
 	Global.populate_favorites()
-	var special = ["ANDROID", "FAVORITES"] # special directories placed at top
-	Global.list_directory_contents(system_dir, true, special, true)
+	var special = ["ANDROID", "FAVORITES", "HISTORY"] # special directories placed at top
+	Global.list_directory_contents(system_dir, true, special, false)
 	Global.show_message("SELECT for GLOBAL options", true)
 
 	if msg_override != null:
@@ -26,9 +26,12 @@ func populate_content(msg_override=null):
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
-	if Global.confirm_pressed():
+	if Global.confirm_pressed() or Global.last_subscreen != "":
 		Global.store_position()
 		var selected_system = Global.get_selected().clean
+		if Global.last_subscreen != "":
+			selected_system = Global.last_subscreen
+			Global.last_subscreen = ""
 		if selected_system.to_lower() == "android":
 			Global.subscreen = "ANDROID"
 			Global.clear_visible("Loading..")

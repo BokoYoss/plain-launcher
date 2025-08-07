@@ -1,3 +1,5 @@
 /psx
 /Roms/Sony Playstation (PS)
 /Roms/PS
+/ROMs/playstation
+/ROMs/psx

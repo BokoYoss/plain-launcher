@@ -13,9 +13,9 @@ func _ready():
 	launcher = ANDROID_LAUNCHER.instantiate()
 	add_child.call_deferred(launcher)
 	Global.subscreen = "ANDROID"
+	Global.android_subscreen = "all"
 	if Global.android_subscreen == "all":
 		view_all()
-		print("viewing all android apps")
 		Global.restore_position()
 	else:
 		populate_content()
@@ -24,7 +24,8 @@ func view_all():
 	Global.store_position()
 	Global.android_subscreen = "all"
 	populate_content()
-	Global.title.text = "All Android apps"
+	#Global.title.text = "All Android apps"
+	Global.title.text = "Android"
 
 func clean_options():
 	var hidden = []
@@ -99,10 +100,10 @@ func _process(delta):
 			selected = Global.get_selected().filename
 			AndroidInterface.launch_package(app_list.get(selected))
 	if Global.back_pressed():
-		if Global.android_subscreen != null or Global.title.text == "Not found":
-			Global.android_subscreen = null
-			populate_content()
-			return
+		#if Global.android_subscreen != null or Global.title.text == "Not found":
+			#Global.android_subscreen = null
+			#populate_content()
+			#return
 		Global.go_to_main()
 	if Input.is_action_just_pressed("start"):
 		if Global.android_subscreen == null:

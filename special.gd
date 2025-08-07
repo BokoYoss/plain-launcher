@@ -32,7 +32,7 @@ func _ready():
 	#pending_image_sprite.position = Vector2(Global.window_width * 0.75, Global.window_height / 2.0)
 	Global.populate_filter = Callable(self, "filter_item")
 	$Path.bbcode_text = "[b]Path:[/b] " + Global.special_item.absolute_path + "\n[b]Image:[/b] " + Global.get_image_path(Global.special_item)
-	$Path.modulate = Global.get_setting(Global.CFG_BG_COLOR)
+	$Path.modulate = Global.get_setting(Global.CFG_FG_COLOR)
 	$Path.position.y = Global.window_height - 64
 	$Path.position.x = Global.left_bound
 	$Path.size.x = Global.window_width
@@ -59,6 +59,8 @@ func populate_content():
 		settings.append_array(system_settings.keys())
 		settings.append("RESTORE DEFAULTS")
 	#settings.append("Look for cover art automatically")
+	if Global.special_item.system == "ANDROID":
+		settings.append("Open app settings")
 	settings.append("Look for cover art on Google")
 	settings.append("Look for cover art on DuckDuckGo")
 	settings.append("Look for cover art on TGDB")
@@ -137,6 +139,8 @@ func _process(delta):
 		elif selected == "additional game paths":
 			Global.go_to("path_adder")
 			return
+		elif "app settings" in selected:
+			AndroidInterface.app_settings(Global.special_item.absolute_path)
 		elif "automatically" in selected:
 			pending_cover_download = true
 			if download_dir == null:

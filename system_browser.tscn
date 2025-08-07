@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://dwkc0oocjun5d"]
 
-[ext_resource type="Script" path="res://system_browser.gd" id="1_ev0vs"]
+[ext_resource type="Script" uid="uid://dqdu0skt4b51b" path="res://system_browser.gd" id="1_ev0vs"]
 [ext_resource type="Texture2D" uid="uid://bwknk1e550p7p" path="res://sprites/pixel.png" id="2_cakha"]
 
 [node name="system_browser" type="Node2D"]

@@ -25,7 +25,7 @@ func _process(delta):
 	if Global.confirm_pressed():
 		Global.store_position()
 		if Global.get_selected().clean == "Development":
-			Global.clear_visible("Credits", ["Created with Godot 4", "https://godotengine.org/", "by Yossarian", "https://bokonon-yossarian.itch.io/"])
+			Global.clear_visible("Credits", ["Created with Godot 4", "https://godotengine.org/", "by Yossarian", "https://ko-fi.com/yossariano"])
 			return
 		if Global.get_selected().clean == "Fonts":
 			populate_font_credits()

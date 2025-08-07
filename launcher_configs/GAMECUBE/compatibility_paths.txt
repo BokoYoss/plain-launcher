@@ -1,2 +1,4 @@
 /gamecube
 /gc
+/ROMs/gamecube
+/ROMs/gc

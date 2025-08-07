@@ -2,3 +2,4 @@
 /Roms/Super Nintendo Entertainment System (SFC)
 /Roms/Super Nintendo Entertainment System (SUPA)
 /Roms/SFC
+/ROMs/snes

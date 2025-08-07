@@ -12,4 +12,5 @@ android/*
 
 *.keystore
 
-*.aseprite
+*.asepriteoutput/*
+*.vpk
