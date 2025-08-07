@@ -182,8 +182,8 @@ func set_up_root():
 			#config_file = config_dir.get_next()
 		#config_dir.list_dir_end()
 	Global.set_root_path(current_dir.get_current_dir())
+	Global.store_version()
 	Global.go_to_main()
-	Font
 	return true
 
 func storage_select(title_override=null):

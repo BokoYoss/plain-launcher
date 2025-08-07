@@ -59,6 +59,8 @@ func _process(delta):
 		Global.store_position()
 
 		var selected = Global.get_selected()
+		if selected.absolute_path == "":
+			return
 		var game_path = selected.absolute_path
 		if Global.get_selected().favorite_dir:
 			# get the system in question from the path

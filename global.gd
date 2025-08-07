@@ -165,6 +165,8 @@ var font = null
 
 var free_version = false
 
+var VERSION = "1.0"
+
 # Cover art
 @onready var cover := $BoxContainer
 var cover_art: Sprite2D = null
@@ -250,6 +252,16 @@ func _ready():
 	show_message("Welcome to PlainLauncher!")
 	go_to_main()
 
+func version_matches():
+	var version_file = FileAccess.get_file_as_string("user://version.txt")
+	return VERSION == version_file
+
+func store_version():
+	var version_file = FileAccess.open("user://version.txt", FileAccess.WRITE)
+	if version_file == null:
+		return
+	version_file.store_string(VERSION)
+
 func get_list_file_contents():
 	if root_path == null:
 		return {}
@@ -266,7 +278,6 @@ func get_positions_files():
 	var scroll_offset_file = "user://scroll_offsets.json"
 	if FileAccess.file_exists(last_screen):
 		last_subscreen = FileAccess.get_file_as_string(last_screen)
-	return
 	if FileAccess.file_exists(cursor_position_file):
 		cursor_positions = JSON.parse_string(FileAccess.get_file_as_string(cursor_position_file))
 	if FileAccess.file_exists(scroll_offset_file):
@@ -380,7 +391,7 @@ func set_up_slots():
 	#show_options(0)
 
 func go_to_main():
-	if not root_path:
+	if not root_path or not version_matches():
 		go_to("confirm_set")
 	else:
 		go_to("system_browser")
@@ -1086,22 +1097,30 @@ func store_position():
 		scroll_offsets[message.text.to_lower()] = scroll_offset
 	else:
 		cursor_positions[title.text.to_lower()] = Global.get_selected().absolute_path
+		scroll_offsets[title.text.to_lower()] = scroll_offset
 
 func restore_position():
+	option_selection = 0
+	scroll_offset = 0
+
 	if get_stored_cursor_position() != null:
-		option_selection = 0
 		while option_selection < option_list.size():
-			print("Looking for " + get_stored_cursor_position() + " against " + get_selected().absolute_path)
+			#print("Looking for " + get_stored_cursor_position() + " against " + get_selected().absolute_path)
 			if get_selected().absolute_path == get_stored_cursor_position():
+				#print("Found it at index " + str(option_selection) + " and scroll offset " + str(scroll_offset))
+				scroll_offset = get_stored_scroll_offset()
+				#print("Using stored scroll offset " + str(scroll_offset))
 				break
-			move_down()
-			if option_selection == 0:
-				break
+			option_selection += 1
+			scroll_offset = max(0, option_selection - visible_slots.size())
+		if option_selection == option_list.size():
+			option_selection = 0
+			scroll_offset = 0
 
 		if not option_list.is_empty() and option_selection >= option_list.size():
 			option_selection = option_list.size() - 1
-	show_options(option_selection)
-	highlight_selection(option_selection)
+	show_options(scroll_offset)
+	highlight_selection()
 
 func filter_out_hidden(item):
 	if show_hidden:

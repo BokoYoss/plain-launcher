@@ -166,10 +166,22 @@
 		"componentClass": "org.yuzu.yuzu_emu.activities.EmulationActivity",
 		"providedFile": "<GAME>"
 	},
+	"suyu": {
+		"action": "android.nfc.action.TECH_DISCOVERED",
+		"componentPackage": "dev.suyu.suyu_emu",
+		"componentClass": "dev.suyu.suyu_emu.activities.EmulationActivity",
+		"providedFile": "<GAME>"
+	},
 	"skyline": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "skyline.emu",
 		"componentClass": "emu.skyline.EmulationActivity",
 		"providedFile": "<GAME>"
-	}
+	},
+	"eden": {
+		"action": "android.nfc.action.TECH_DISCOVERED",
+		"componentPackage": "dev.eden.eden_emulator",
+		"componentClass": "org.yuzu.yuzu_emu.activities.EmulationActivity",
+		"providedFile": "<GAME>"
+	},
 }

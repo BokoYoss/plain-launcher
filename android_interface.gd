@@ -66,10 +66,12 @@ func request_permissions():
 	_android_plugin.requestFilePermissions()
 
 func launch_intent(serialized_intent: String):
+	Global.store_positions_files()
 	print("Trying to launch [intent]:" + serialized_intent)
 	return _android_plugin.launchIntent(serialized_intent)
 
 func launch_default_app(category: String):
+	Global.store_positions_files()
 	return _android_plugin.launchDefaultApp(category)
 
 func look_for_art(game: String, system: String, source: String = "google"):
@@ -80,10 +82,12 @@ func get_app_list():
 	return JSON.parse_string(_android_plugin.getInstalledAppList())
 
 func launch_package(package_name):
+	Global.store_positions_files()
 	print("Trying to launch package " + str(package_name))
 	_android_plugin.launchPackage(package_name)
 
 func app_settings(package_name):
+	Global.store_positions_files()
 	print("Opening settings for " + str(package_name))
 	_android_plugin.openAppSpecificSettings(package_name)
 

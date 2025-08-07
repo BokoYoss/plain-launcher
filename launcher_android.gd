@@ -28,7 +28,6 @@ func launch_with_settings(settings: Dictionary, game_path: String = ""):
 	Global.pending_intent = launch_config['componentPackage']
 	Global.pending_game = game_path
 	Global.pending_launch = settings
-	Global.store_positions_files()
 
 	var intent = JSON.stringify(launch_config).replace("<GAME>", game_path).replace("<CORE>", core)
 	print("PLAIN LAUNCH: " + intent)
