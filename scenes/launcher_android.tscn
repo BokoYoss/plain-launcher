@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dfftsd6pvpqcn"]
 
-[ext_resource type="Script" uid="uid://d1ss81sg0axhm" path="res://launcher_android.gd" id="1_yc6tw"]
+[ext_resource type="Script" uid="uid://d1ss81sg0axhm" path="res://scenes/launcher_android.gd" id="1_yc6tw"]
 
 [node name="LauncherAndroid" type="Node2D"]
 script = ExtResource("1_yc6tw")

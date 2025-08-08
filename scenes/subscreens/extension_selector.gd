@@ -1,6 +1,6 @@
 extends component
 
-var ANDROID_LAUNCHER = preload("res://launcher_android.tscn")
+var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 var launcher
 
 var system_settings = {}

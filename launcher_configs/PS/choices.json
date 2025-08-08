@@ -1,5 +1,5 @@
 {
 	"EMULATOR": ["retroarch", "retroarch64", "retroarch32", "duckstation"],
-	"CORE": ["pcsx_rearmed", "mednafen_psx_hw", "mednafen_psx", "duckstation"],
+	"CORE": ["pcsx_rearmed", "mednafen_psx_hw", "mednafen_psx", "swanstation"],
 	"EXTENSIONS": ["chd", "m3u", "cue", "pbp", "bin"]
 }

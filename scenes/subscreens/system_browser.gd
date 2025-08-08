@@ -8,6 +8,7 @@ func _ready():
 	Global.fade.modulate = Global.get_setting(Global.CFG_BG_COLOR)
 	Global.fade.modulate.a = 1.0
 	Global.subscreen = ""
+	Global.alt_art_path = ""
 	populate_content()
 
 func populate_content(msg_override=null):

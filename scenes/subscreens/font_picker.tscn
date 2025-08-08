@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://wdt7ynqp3f8i"]
 
-[ext_resource type="Script" path="res://font_picker.gd" id="1_xgn2s"]
+[ext_resource type="Script" uid="uid://bmh3ecux8b60x" path="res://scenes/subscreens/font_picker.gd" id="1_xgn2s"]
 
 [node name="font_picker" type="Node2D"]
 script = ExtResource("1_xgn2s")

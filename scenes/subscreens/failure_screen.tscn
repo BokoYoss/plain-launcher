@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dane0lh6d7jj3"]
 
-[ext_resource type="Script" uid="uid://y30o48bttp5m" path="res://failure_screen.gd" id="1_nmxn5"]
+[ext_resource type="Script" uid="uid://y30o48bttp5m" path="res://scenes/subscreens/failure_screen.gd" id="1_nmxn5"]
 
 [node name="FailureScreen" type="Node2D"]
 script = ExtResource("1_nmxn5")

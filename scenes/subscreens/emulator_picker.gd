@@ -2,7 +2,7 @@ extends component
 
 var launcher = null
 
-var ANDROID_LAUNCHER = preload("res://launcher_android.tscn")
+var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 
 # Called when the node enters the scene tree for the first time.
 func _ready():

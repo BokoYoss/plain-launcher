@@ -19,6 +19,7 @@ const CFG_SCALER = "SCALER"
 const CFG_VIBRATE = "VIBRATE"
 const CFG_FONT = "FONT"
 const CFG_SHOW_ART = "SHOW_ART"
+const CFG_VISUAL_ALT_ART_PATH = "VISUAL_ALT_ART_PATH"
 const CFG_VISUAL_BORDER = "VISUAL_BORDER"
 const CFG_VISUAL_SYSTEM_BORDER = "VISUAL_SYSTEM_BORDER_ENABLED"
 const CFG_VISUAL_BUILTIN_SYSTEM_ART = "VISUAL_BUILTIN_SYSTEM_ART_ENABLED"
@@ -44,6 +45,7 @@ var DEFAULT_SETTINGS = {
 	CFG_LAST_SCREEN: "",
 	CFG_SCALER: 0.25,
 	CFG_VIBRATE: true,
+	CFG_VISUAL_ALT_ART_PATH: "",
 	CFG_VISUAL_BORDER: Vector2(8, 8),
 	CFG_VISUAL_BUILTIN_SYSTEM_ART: false,
 	CFG_VISUAL_SYSTEM_BORDER: false,
@@ -82,6 +84,7 @@ var pending_launch = ""
 var last_subscreen = ""
 var can_scroll = true
 var failure_message = ""
+var alt_art_path = ""
 
 var title: Label = null
 var message: Label = null
@@ -115,7 +118,7 @@ var show_hidden = false
 var held_time = -1
 var frame = 0
 
-const OPTIONS_MAKER = preload("res://option.tscn")
+const OPTIONS_MAKER = preload("res://scenes/option.tscn")
 @onready var null_option = OPTIONS_MAKER.instantiate()
 var clean_regex = null
 var normalize_regex = null
@@ -602,7 +605,7 @@ func go_to(target, new_message="", force=false):
 	post_scroll_callback = null
 	no_alias = false
 	img_texture_override = null
-	get_tree().change_scene_to_file.call_deferred("res://" + target + ".tscn")
+	get_tree().change_scene_to_file.call_deferred("res://scenes/subscreens/" + target + ".tscn")
 
 func back_to_previous_screen():
 	go_to(previous_screen, "", true)
@@ -626,12 +629,16 @@ func clear_visible(title_text="", custom_options=[]):
 		restore_position()
 		highlight_selection()
 
-func refresh_art(image_path=Global.get_image_path()):
+func refresh_art(image_path=Global.get_image_path(), alt=false):
 	#var err = image.load(Global.root_path + PATH_IMGS + selected_system + "/" + Global.visible_slots[Global.selected].text + ".png")
 	#print("Image load result: " + str(err))
 	if !FileAccess.file_exists(image_path) and img_texture_override == null:
 		cover_art.texture = null
 		cover.visible = false
+		if not alt and Global.alt_art_path != "":
+			var altPath = Global.alt_art_path + "/" + Global.get_selected().filename.get_basename() + ".png"
+			#print("looking for alt art at " + altPath)
+			return refresh_art(altPath, true)
 		return
 	var art_file = FileAccess.open(image_path, FileAccess.READ)
 	cover.modulate.a = get_setting(CFG_VISUAL_COVER_OPACITY)
@@ -645,6 +652,7 @@ func refresh_art(image_path=Global.get_image_path()):
 			if image == null:
 				cover.visible = false
 				return
+			image.convert(Image.FORMAT_RGBA8)
 			cover_art.texture = ImageTexture.create_from_image(image)
 		#var effective_height_offset = title.size.y
 		#if get_setting(CFG_SCALER) <= 0.5 or get_setting(CFG_VISUAL_COVER_SIZE).x >= 1.0:
@@ -1010,7 +1018,6 @@ func get_systemwide_settings(for_system):
 		return build_system_settings_from_options(for_system)
 	return current_settings
 
-
 func get_system_settings(system_for_settings=Global.subscreen):
 	var system_settings = {}
 	var current_settings_path = Global.root_path + "/" + Global.PATH_CONFIG + "/" + system_for_settings + "/config.json"
@@ -1023,22 +1030,37 @@ func get_system_settings(system_for_settings=Global.subscreen):
 		return {}
 	print("GET SETTINGS " + current_settings_path)
 	if FileAccess.file_exists(current_settings_path):
-		return JSON.parse_string(FileAccess.get_file_as_string(current_settings_path))
+		system_settings = JSON.parse_string(FileAccess.get_file_as_string(current_settings_path))
 	else:
 		# No settings saved, use the first option from the options lists
-		return build_system_settings_from_options()
+		system_settings = build_system_settings_from_options()
+	#if not system_settings.has("Alternate Art Path"):
+		#system_settings["Alternate Art Path"] = ""
+	return system_settings
 
-func get_paths_filepath():
+func get_paths_filepath(prefix=""):
 	var system = Global.subscreen
 	if Global.special_item != null:
 		system = Global.special_item.system
-	return Global.root_path + Global.PATH_CONFIG + system + "/paths.txt"
+	return Global.root_path + Global.PATH_CONFIG + system + "/" + prefix + "paths.txt"
 
 func get_compat_paths_filepath():
 	var system = Global.subscreen
 	if Global.special_item != null:
 		system = Global.special_item.system
 	return Global.root_path + Global.PATH_CONFIG + system + "/compatibility_paths.txt"
+
+func store_additional_art_path(path):
+	var paths_file = get_paths_filepath("art_")
+	var paths_file_write = FileAccess.open(paths_file, FileAccess.WRITE)
+	print("STORE ADDITIONAL ART PATHS " + str(path) + " TO " + paths_file)
+	paths_file_write.store_string(path)
+
+func get_additional_art_path():
+	var paths_file = get_paths_filepath("art_")
+	if FileAccess.file_exists(paths_file):
+		return FileAccess.get_file_as_string(paths_file)
+	return ""
 
 func store_additional_paths(paths):
 	var paths_file = get_paths_filepath()
@@ -1439,6 +1461,16 @@ func touch_checkin():
 	var touch_diff = touch_position - previous_touch_position
 	previous_touch_position = touch_position
 	# Get the difference between touch checkins
+
+func get_es_de_system(selected=Global.get_selected()):
+	var curr_sys = selected.system.to_lower()
+	if curr_sys== "gamecube":
+		return "gc"
+	elif curr_sys  == "pce":
+		return "pcengine"
+	elif curr_sys == "ps":
+		return "psx"
+	return curr_sys
 
 func get_image_path(selected=Global.get_selected()):
 	var system_in_question = selected.system

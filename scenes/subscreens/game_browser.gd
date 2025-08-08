@@ -8,7 +8,7 @@ var launcher = null
 
 var system_settings = null
 
-var ANDROID_LAUNCHER = preload("res://launcher_android.tscn")
+var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -21,6 +21,9 @@ func _ready():
 	if OS.get_name() == "Android":
 		launcher = ANDROID_LAUNCHER.instantiate()
 		add_child.call_deferred(launcher)
+
+	Global.alt_art_path = Global.get_additional_art_path()
+	print("got alt art path " + Global.alt_art_path)
 
 func filter_item(item):
 	if system_settings == null:

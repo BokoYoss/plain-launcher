@@ -1,6 +1,6 @@
 extends component
 
-var ANDROID_LAUNCHER = preload("res://launcher_android.tscn")
+var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 var launcher
 
 # Called when the node enters the scene tree for the first time.

@@ -1,6 +1,6 @@
 extends component
 
-var ANDROID_LAUNCHER = preload("res://launcher_android.tscn")
+var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 var launcher
 
 var pending_cover_download = false
@@ -39,11 +39,22 @@ func _ready():
 	$Path.size.y = 128
 	$Path.set("theme_override_font_sizes/font_size", 16)
 	$Path.add_theme_font_override("font", Global.font)
+	AndroidInterface.connect("configured_storage", get_storage_selection)
+	AndroidInterface.connect("configure_storage_failure", on_storage_config_failure)
 	populate_content()
+
+func get_storage_selection(path):
+	print("Got alt art path: " + path)
+	Global.store_additional_art_path(path)
+	populate_content()
+
+func on_storage_config_failure(msg):
+	pass
 
 func populate_content():
 	var settings = []
 	var hide_toggle = "Hide"
+	refresh_disk_settings()
 	if Global.HIDDEN_LIST.get(Global.special_item.absolute_path, false):
 		hide_toggle = "Unhide"
 	if !Global.special_item.is_dir:
@@ -53,8 +64,9 @@ func populate_content():
 		settings.append(fave_toggle)
 	else:
 		settings.append("Additional game paths")
+		settings.append("Additional art path: " + Global.get_additional_art_path())
 	settings.append(hide_toggle)
-	refresh_disk_settings()
+
 	if not system_settings.is_empty():
 		settings.append_array(system_settings.keys())
 		settings.append("RESTORE DEFAULTS")
@@ -129,6 +141,9 @@ func _process(delta):
 			return
 		if "ok" == selected:
 			populate_content()
+			return
+		if selected.begins_with("additional art path"):
+			AndroidInterface.choose_storage_directory()
 			return
 		if Global.title.text.to_lower() == "failure":
 			pass

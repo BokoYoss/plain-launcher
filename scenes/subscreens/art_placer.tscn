@@ -1,0 +1,73 @@
+[gd_scene load_steps=16 format=3 uid="uid://cwh2ktn5ot637"]
+
+[ext_resource type="Script" uid="uid://dsh1a3147f75o" path="res://scenes/subscreens/art_placer.gd" id="1_1qn2x"]
+[ext_resource type="Texture2D" path="res://sprites/art_placer_cursor.png" id="2_4ner4"]
+[ext_resource type="Texture2D" uid="uid://drrfwepivuo5v" path="res://example_art/1.png" id="2_4yym2"]
+[ext_resource type="Texture2D" uid="uid://esuul4nebyhh" path="res://example_art/2.png" id="3_8esn2"]
+[ext_resource type="Texture2D" uid="uid://bbikuq0s3tfrb" path="res://example_art/3.png" id="4_ggr8p"]
+[ext_resource type="Texture2D" uid="uid://ci6hlidjyab2t" path="res://example_art/4.png" id="5_6sn2s"]
+[ext_resource type="Texture2D" uid="uid://h1w16pygqu0q" path="res://example_art/5.png" id="6_rbjux"]
+[ext_resource type="Texture2D" uid="uid://cnyud3gkangru" path="res://example_art/6.png" id="7_pudq0"]
+[ext_resource type="Texture2D" uid="uid://fon86ef3bnwq" path="res://example_art/7.png" id="8_y08ya"]
+[ext_resource type="Texture2D" uid="uid://ceyqfcqctfwum" path="res://example_art/8.png" id="9_v58dp"]
+[ext_resource type="Texture2D" uid="uid://2vrlp1muar2h" path="res://example_art/9.png" id="10_yt2u0"]
+[ext_resource type="Texture2D" uid="uid://cywo71jy3f64w" path="res://example_art/10.png" id="11_tnk2o"]
+[ext_resource type="Texture2D" uid="uid://c68qqnhiyr1qt" path="res://example_art/11.png" id="12_g1cvx"]
+[ext_resource type="Texture2D" uid="uid://dvod23mxb1btj" path="res://example_art/12.png" id="13_836og"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_ybfkv"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_4yym2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_8esn2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_ggr8p")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_6sn2s")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_rbjux")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_pudq0")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_y08ya")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_v58dp")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_yt2u0")
+}, {
+"duration": 1.0,
+"texture": ExtResource("11_tnk2o")
+}, {
+"duration": 1.0,
+"texture": ExtResource("12_g1cvx")
+}, {
+"duration": 1.0,
+"texture": ExtResource("13_836og")
+}],
+"loop": true,
+"name": &"default",
+"speed": 5.0
+}]
+
+[node name="Picker" type="Node2D"]
+script = ExtResource("1_1qn2x")
+
+[node name="Cursor" type="Sprite2D" parent="."]
+texture_filter = 1
+scale = Vector2(10, 10)
+texture = ExtResource("2_4ner4")
+
+[node name="ExampleArt" type="AnimatedSprite2D" parent="Cursor"]
+modulate = Color(1, 1, 1, 0.341176)
+scale = Vector2(0.1, 0.1)
+sprite_frames = SubResource("SpriteFrames_ybfkv")
