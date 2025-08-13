@@ -161,13 +161,13 @@
 		"data": "<GAME>"
 	},
 	"yuzu": {
-		"action": "android.nfc.action.TECH_DISCOVERED",
+		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.yuzu.yuzu_emu",
 		"componentClass": "org.yuzu.yuzu_emu.activities.EmulationActivity",
 		"providedFile": "<GAME>"
 	},
 	"suyu": {
-		"action": "android.nfc.action.TECH_DISCOVERED",
+		"action": "android.intent.action.VIEW",
 		"componentPackage": "dev.suyu.suyu_emu",
 		"componentClass": "dev.suyu.suyu_emu.activities.EmulationActivity",
 		"providedFile": "<GAME>"
@@ -179,7 +179,7 @@
 		"providedFile": "<GAME>"
 	},
 	"eden": {
-		"action": "android.nfc.action.TECH_DISCOVERED",
+		"action": "android.intent.action.VIEW",
 		"componentPackage": "dev.eden.eden_emulator",
 		"componentClass": "org.yuzu.yuzu_emu.activities.EmulationActivity",
 		"providedFile": "<GAME>"

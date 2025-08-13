@@ -168,7 +168,7 @@ var font = null
 
 var free_version = false
 
-var VERSION = "1.0"
+var VERSION = "1.1"
 
 # Cover art
 @onready var cover := $BoxContainer
@@ -249,7 +249,7 @@ func _ready():
 		Global.swap_confirm_key()
 
 	OS.request_permissions()
-	
+
 	get_positions_files()
 
 	show_message("Welcome to PlainLauncher!")
