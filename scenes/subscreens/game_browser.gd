@@ -54,6 +54,7 @@ func populate_content(msg_override=null):
 
 	if msg_override != null:
 		Global.show_message(msg_override, true)
+
 	Global.refresh_art()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.

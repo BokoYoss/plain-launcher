@@ -9,10 +9,12 @@ func _ready():
 	Global.fade.modulate.a = 1.0
 	Global.subscreen = ""
 	Global.alt_art_path = ""
+	Global.title_can_be_blank = true
 	populate_content()
 
 func populate_content(msg_override=null):
-	Global.clear_visible("SYSTEMS")
+	Global.clear_visible(Global.get_setting(Global.CFG_SYSTEM_TITLE))
+	Global.set_up_slots()
 	var system_dir: DirAccess = DirAccess.open(Global.root_path + "/" + Global.PATH_GAMES)
 
 	Global.refresh_alias()
@@ -24,6 +26,10 @@ func populate_content(msg_override=null):
 	if msg_override != null:
 		Global.show_message(msg_override, true)
 	Global.refresh_art()
+
+func _exit_tree() -> void:
+	Global.title_can_be_blank = false
+	Global.set_up_slots()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):

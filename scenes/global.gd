@@ -35,6 +35,8 @@ const CFG_VISUAL_LETTER_OUTLINES = "VISUAL_LETTER_OUTLINES"
 const CFG_TOUCH_VISIBLE = "TOUCH_VISIBLE"
 const CFG_LEFT_MARGIN = "TEXT_LEFT_MARGIN"
 const CFG_TOP_MARGIN = "TEXT_TOP_MARGIN"
+const CFG_TITLE_SIZE = "TITLE_SIZE"
+const CFG_SYSTEM_TITLE = "TITLE_SYSTEM"
 const CFG_TEXT_LENGTH = "TEXT_LENGTH"
 
 var DEFAULT_SETTINGS = {
@@ -62,6 +64,8 @@ var DEFAULT_SETTINGS = {
 	CFG_LEFT_MARGIN: 16.0,
 	CFG_TOP_MARGIN: 8.0,
 	CFG_TEXT_LENGTH: 0.5,
+	CFG_TITLE_SIZE: 0.25,
+	CFG_SYSTEM_TITLE: "SYSTEMS",
 }
 
 const PATH_CONFIG = "/Config/"
@@ -114,6 +118,7 @@ const SCREEN_HUGE = 2.0
 
 var subscreen = null
 var show_hidden = false
+var title_can_be_blank = false
 
 var held_time = -1
 var frame = 0
@@ -339,9 +344,16 @@ func set_up_slots():
 	title.horizontal_alignment = get_setting(CFG_VISUAL_TITLE_ORIENTATION)
 	title.add_theme_constant_override("outline_size", outline_thickness)
 	title.position.y = get_setting(CFG_TOP_MARGIN)
-	title.position.x = left_bound
+	title.position.x = 0
 	title.uppercase = true
-	title.set("theme_override_font_sizes/font_size", scaled_text_height)
+	title.set("theme_override_font_sizes/font_size", scaled_text_height * get_setting(CFG_TITLE_SIZE))
+	title.size.y = 0
+	if title_can_be_blank and title.text == "":
+		title.position.y -= title.size.y
+
+	var slot_start = title.position.y + (title.size.y * title.scale.y) - scaled_text_height / 2.0
+
+	print("TITLE TEXT: " + title.text + "TITLE SIZE: " + str(title.size.y * title.scale.y) + " SLOT START: " + str(slot_start))
 
 	message = $SlotHolder/Body.duplicate()
 	add_child.call_deferred(message)
@@ -366,7 +378,7 @@ func set_up_slots():
 	fav_indicators.clear()
 
 	var body_alignment = get_setting(CFG_VISUAL_BODY_ORIENTATION)
-	for i in range(1, Global.window_height / (scaled_text_height * 0.5) -1):
+	for i in range(1, (Global.window_height - title.size.y) / (scaled_text_height / 2.0) + 1):
 		var new_slot: Label = message.duplicate()
 		#new_slot.size.x = Global.window_width / 2.0
 		slot_offset = left_bound
@@ -376,7 +388,7 @@ func set_up_slots():
 		slot_holder.add_child.call_deferred(new_slot)
 		visible_slots.append(new_slot)
 		new_slot.add_theme_constant_override("outline_size", outline_thickness)
-		new_slot.position.y = (title.position.y + scaled_text_height / 2.0) + i * (scaled_text_height * 0.5)
+		new_slot.position.y = (slot_start) + i * (scaled_text_height * 0.5)
 		var fav_indicator = $Pixel.duplicate()
 		new_slot.add_child.call_deferred(fav_indicator)
 		fav_indicator.position.x = -left_bound / 2.0
@@ -475,6 +487,15 @@ func cycle_left_margin():
 
 func cycle_top_margin():
 	cycle_options(CFG_TOP_MARGIN, [0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0])
+	set_up_slots()
+
+func cycle_title_size():
+	cycle_options(CFG_TITLE_SIZE, [0.1, 0.25, 0.5, 0.75, 1.0])
+	set_up_slots()
+
+func cycle_system_title():
+	print("HERE")
+	cycle_options(CFG_SYSTEM_TITLE, ["SYSTEMS", "", "PLAIN LAUNCHER", "MAIN", "ALL"])
 	set_up_slots()
 
 func cycle_line_length():

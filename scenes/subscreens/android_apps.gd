@@ -57,6 +57,7 @@ func populate_content(msg_override=null):
 	#	options.push_front("Settings")
 		Global.clear_visible("ANDROID", options)
 		clean_options()
+	Global.set_up_slots()
 	Global.refresh_art()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.

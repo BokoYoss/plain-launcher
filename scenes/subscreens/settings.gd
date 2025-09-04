@@ -43,7 +43,7 @@ func show_visual_settings():
 	var line_length_example = ""
 	for i in range(0, Global.window_width):
 		line_length_example += "0"
-	var visual_settings = ["Change size", "Cover size", "Cover position", "Cover border", "Cover opacity", "Drop shadow", "System Art: " + str(Global.get_setting(Global.CFG_VISUAL_BUILTIN_SYSTEM_ART)), "System borders: " + str(Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER)), "Title orientation", "Left margin", "Top margin", "Text cutoff: " + LOREM, "Letter outlines", "Change font", "Change background color", "Change foreground color"]
+	var visual_settings = ["Change size", "Title orientation", "Title size", "Main title: " + str(Global.get_setting(Global.CFG_SYSTEM_TITLE)), "Cover size", "Cover position", "Cover border", "Cover opacity", "Drop shadow", "System Art: " + str(Global.get_setting(Global.CFG_VISUAL_BUILTIN_SYSTEM_ART)), "System borders: " + str(Global.get_setting(Global.CFG_VISUAL_SYSTEM_BORDER)), "Left margin", "Top margin", "Text cutoff: " + LOREM, "Letter outlines", "Change font", "Change background color", "Change foreground color"]
 	var hide_toggle = "Show hidden items"
 	if Global.show_hidden:
 		hide_toggle = "Hide hidden items"
@@ -127,6 +127,14 @@ func _process(delta):
 			return
 		elif "title orientation" == selected:
 			Global.cycle_title_allignment()
+			show_visual_settings()
+			return
+		elif "title size" == selected:
+			Global.cycle_title_size()
+			show_visual_settings()
+			return
+		elif "main title" in selected:
+			Global.cycle_system_title()
 			show_visual_settings()
 			return
 		elif "text orientation" == selected:
