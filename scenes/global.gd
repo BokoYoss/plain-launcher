@@ -1261,11 +1261,11 @@ func _process(delta):
 		if Input.is_action_just_pressed("l3"):
 			if cover.visible:
 				cycle_border_thickness()
-		if Input.is_action_just_pressed("hide"):
-			Global.store_position()
-			toggle_hidden()
-			go_to(current_screen)
-			Global.restore_position()
+		#if Input.is_action_just_pressed("hide"):
+			#Global.store_position()
+			#toggle_hidden()
+			#go_to(current_screen)
+			#Global.restore_position()
 		if Input.is_action_just_pressed("special"):
 			go_to_special()
 		if Input.is_action_just_pressed("body_orient"):
