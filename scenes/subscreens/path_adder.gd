@@ -9,13 +9,12 @@ var start_time = null
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	#title.set_anchors_preset(Control.PRESET_CENTER)
 	if OS.get_name() == "Android":
 		AndroidInterface.connect("configured_storage", get_storage_selection)
 		AndroidInterface.connect("configure_storage_failure", on_storage_config_failure)
 		populate_content()
 	else:
-		Global.go_to_main()
+		Navigator.go_to_main()
 	start_time = Time.get_ticks_msec()
 	print(Global.special_item)
 
@@ -33,7 +32,7 @@ func on_storage_config_failure(message):
 
 func populate_content():
 	additional_paths = Global.get_additional_paths()
-	
+
 	var options = ["Add a path"]
 	options.append_array(additional_paths)
 
@@ -67,4 +66,4 @@ func _process(delta):
 			Global.clear_visible(pending_path, ["Remove", "Back"])
 			return
 	elif Global.back_pressed():
-		Global.back_to_previous_screen()
+		Navigator.back_to_previous_screen()

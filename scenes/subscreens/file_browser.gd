@@ -8,13 +8,7 @@ var start_time = null
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	#title.set_anchors_preset(Control.PRESET_CENTER)
 	if OS.get_name() == "Android":
-		#if true:
-			#request_permissions()
-		#else:
-			#storage_select()
-		#request_permissions()
 		storage_select()
 		AndroidInterface.connect("configured_storage", get_storage_selection)
 		AndroidInterface.connect("configure_storage_failure", on_storage_config_failure)
@@ -79,10 +73,8 @@ func populate_files(root, dir_only=false):
 func copy_builtin_contents(relative_dir):
 	var config_dir = DirAccess.open("res://launcher_configs/" + relative_dir)
 	config_dir.list_dir_begin()
-	# For some reason, Godot exports these with .import, but they are the real files
 	var config_file = config_dir.get_next()
 	while config_file != "":
-		# Copy built-in files to working directory
 		if OS.get_name() == "Android" and config_file.get_extension() == "import":
 			config_file = config_dir.get_next()
 			continue
@@ -135,7 +127,6 @@ func set_up_root():
 	for game_set in game_sets:
 		print("Configuring " + game_set + " directory..")
 		if game_set.to_lower() != "common":
-			# common is a special, config-only dir
 			mkdir_result = current_dir.make_dir_recursive(current_dir.get_current_dir() + Global.PATH_GAMES + game_set)
 			if mkdir_result != 0 and mkdir_result != 32:
 				print("Failed to make directory (error " + str(mkdir_result) + ") at " + current_dir.get_current_dir() + Global.PATH_GAMES + game_set + " ERROR: " + str(mkdir_result))
@@ -151,7 +142,6 @@ func set_up_root():
 		copy_builtin_contents(game_set)
 
 		var system_image_path = "res://launcher_configs/" + game_set + "/image.png"
-		#var image = Image.new()
 		var system_image = ResourceLoader.load(system_image_path, "png")
 		var dest_image = current_dir.get_current_dir() + Global.PATH_IMAGES + game_set + ".png"
 		if system_image == null or FileAccess.file_exists(dest_image):
@@ -162,28 +152,9 @@ func set_up_root():
 		var result = system_image.get_image().save_png(dest_image)
 		if result != 0:
 			print("Failed to copy image at " + system_image_path)
-		#config_dir.list_dir_begin()
-		#var config_file = config_dir.get_next()
-		#while config_file != "":
-			## Copy built-in files to working directory
-			#var builtin = "res://launcher_configs/" + game_set + "/" + config_file
-			#if not FileAccess.file_exists(builtin):
-				#print("Couldn't find file at " + builtin)
-				#continue
-			#var dest = current_dir.get_current_dir() + "/" + Global.PATH_CONFIG + "/" + game_set + "/" + config_file
-			#if FileAccess.file_exists(dest):
-				#current_dir.remove(Global.PATH_CONFIG + "/"  + game_set + "/" + config_file)
-			#print("Copying built-in config from " + builtin + " to " + dest)
-			#var builtin_contents = FileAccess.get_file_as_string(builtin)
-			#var dest_file = FileAccess.open(dest, FileAccess.WRITE)
-			#dest_file.store_string(builtin_contents)
-			#dest_file.close()
-#
-			#config_file = config_dir.get_next()
-		#config_dir.list_dir_end()
 	Global.set_root_path(current_dir.get_current_dir())
 	Global.store_version()
-	Global.go_to_main()
+	Navigator.go_to_main()
 	return true
 
 func storage_select(title_override=null):
@@ -214,44 +185,15 @@ func _process(delta):
 					Global.clear_visible("Set up Plain Launcher directory.", ["OK"])
 					Global.show_message(str(current_dir.get_current_dir()).replace("//", "/"), true)
 			elif Global.get_selected().clean.to_lower() == "ok":
-				Global.go_to("system_browser")
+				Navigator.go_to("system_browser")
 			elif "selector" in Global.get_selected().clean.to_lower():
 				AndroidInterface.choose_storage_directory()
 			elif "on-device" in Global.get_selected().clean.to_lower():
 				Global.clear_visible("Configuring...")
 				AndroidInterface.create_internal_storage()
-				#current_dir = DirAccess.open("/mnt/sdcard")
-				#if current_dir:
-					#var result = current_dir.make_dir("PlainLauncher")
-					#if result == 0 or result == 32:
-						#current_dir = DirAccess.open(current_dir.get_current_dir() + "/PlainLauncher/")
-						#if not set_up_root():
-							#Global.clear_visible("Failure during setup.", ["Try internal again", "Open storage selector"])
-						#return
-					#else:
-						#print("Failed to make directory at /mnt/sdcard/PlainLauncher. Error: " + str(result))
-						##Global.show_message(str(current_dir.get_current_dir() + "/PlainLauncher/").replace("//", "/"), true)
-				#else:
-					#print("Cannot access /mnt/sdcard/")
-				#Global.clear_visible("Failure during setup.", ["Try internal again", "Open storage selector"])
-				#Global.show_message("Check permissions", true)
 			elif "removable" in Global.get_selected().clean.to_lower():
 				Global.clear_visible("Configuring...")
 				AndroidInterface.create_external_storage()
-				#external_card_path = AndroidInterface.get_external_card_path()
-				#if external_card_path:
-					#print("Found external storage path at " + external_card_path)
-					#var external_storage = DirAccess.open(external_card_path)
-					#if external_storage:
-						#print("Was able to open external storage at " + external_card_path)
-						#current_dir = external_storage
-						#Global.clear_visible("Create external storage directory?", ["YES", "NO"])
-						#Global.show_message(str(current_dir.get_current_dir() + "/PlainLauncher/").replace("//", "/"), true)
-					#else:
-						#Global.clear_visible("Failed to access external", ["TRY INTERNAL", "TRY EXTERNAL AGAIN"])
-						#Global.show_message("Check permissions", true)
-				#else:
-					#Global.clear_visible("Failed to access external storage.", ["TRY INTERNAL", "TRY EXTERNAL AGAIN"])
 			return
 		Global.store_position()
 		var selected_dir = Global.get_selected().clean
@@ -259,7 +201,7 @@ func _process(delta):
 			populate_files(current_dir.get_current_dir() + "/" + selected_dir, true)
 	elif Global.back_pressed():
 		if (Global.title.text.to_lower() == "select storage"):
-			Global.go_to_main()
+			Navigator.go_to_main()
 			return
 		storage_select()
 	elif Input.is_action_just_pressed("start"):

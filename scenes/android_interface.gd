@@ -19,7 +19,7 @@ signal failure_to_launch(message)
 
 func failed_to_launch(message):
 	if Global.pending_game != "":
-		Global.go_to("failure_screen")
+		Navigator.go_to("failure_screen")
 
 func image_downloaded(path):
 	print("IMAGE DOWNLOADED NOWWWWW " + path)

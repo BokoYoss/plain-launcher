@@ -6,68 +6,6 @@ var title_offset = 0
 
 var root_path = ""
 
-const SETTINGS_FILE = "user://settings.bin"
-var global_settings = null
-
-const CFG_ROOT = "ROOT"
-const CFG_LAST_SCREEN = "LAST_SCREEN"
-const CFG_CONFIRM_SWAP = "SWAP"
-const CFG_BG_COLOR = "COLOR_BG"
-const CFG_FG_COLOR = "COLOR_FG"
-const CFG_CAPS_LOCK = "CAPS_LOCK"
-const CFG_SCALER = "SCALER"
-const CFG_VIBRATE = "VIBRATE"
-const CFG_FONT = "FONT"
-const CFG_SHOW_ART = "SHOW_ART"
-const CFG_VISUAL_ALT_ART_PATH = "VISUAL_ALT_ART_PATH"
-const CFG_VISUAL_BORDER = "VISUAL_BORDER"
-const CFG_VISUAL_SYSTEM_BORDER = "VISUAL_SYSTEM_BORDER_ENABLED"
-const CFG_VISUAL_BUILTIN_SYSTEM_ART = "VISUAL_BUILTIN_SYSTEM_ART_ENABLED"
-const CFG_VISUAL_DROP_SHOW = "VISUAL_DROP_SHADOW"
-const CFG_VISUAL_COVER_SIZE = "VISUAL_COVER_SIZE"
-const CFG_VISUAL_COVER_OPACITY = "VISUAL_COVER_OPACITY"
-const CFG_VISUAL_TITLE_ORIENTATION = "VISUAL_TITLE_ORIENTATION"
-const CFG_VISUAL_BODY_ORIENTATION = "VISUAL_BODY_ORIENTATION"
-const CFG_VISUAL_ART_ORIENTATION = "VISUAL_ART_ORIENTATION"
-const CFG_VISUAL_ART_POSITION_X = "VISUAL_ART_POS_X"
-const CFG_VISUAL_ART_POSITION_Y = "VISUAL_ART_POS_Y"
-const CFG_VISUAL_LETTER_OUTLINES = "VISUAL_LETTER_OUTLINES"
-const CFG_TOUCH_VISIBLE = "TOUCH_VISIBLE"
-const CFG_LEFT_MARGIN = "TEXT_LEFT_MARGIN"
-const CFG_TOP_MARGIN = "TEXT_TOP_MARGIN"
-const CFG_TITLE_SIZE = "TITLE_SIZE"
-const CFG_SYSTEM_TITLE = "TITLE_SYSTEM"
-const CFG_TEXT_LENGTH = "TEXT_LENGTH"
-
-var DEFAULT_SETTINGS = {
-	CFG_CONFIRM_SWAP: false,
-	CFG_BG_COLOR: Color.BLACK,
-	CFG_FG_COLOR: Color("#f5f7fa"),
-	CFG_CAPS_LOCK: false,
-	CFG_LAST_SCREEN: "",
-	CFG_SCALER: 0.25,
-	CFG_VIBRATE: true,
-	CFG_VISUAL_ALT_ART_PATH: "",
-	CFG_VISUAL_BORDER: Vector2(8, 8),
-	CFG_VISUAL_BUILTIN_SYSTEM_ART: false,
-	CFG_VISUAL_SYSTEM_BORDER: false,
-	CFG_VISUAL_DROP_SHOW: Vector2.ZERO,
-	CFG_VISUAL_COVER_SIZE: Vector2(0.4, 0.6),
-	CFG_VISUAL_COVER_OPACITY: 1.0,
-	CFG_VISUAL_TITLE_ORIENTATION: HORIZONTAL_ALIGNMENT_LEFT,
-	CFG_VISUAL_BODY_ORIENTATION: HORIZONTAL_ALIGNMENT_LEFT,
-	CFG_VISUAL_ART_ORIENTATION: 0.75,
-	CFG_VISUAL_ART_POSITION_X: 0.75,
-	CFG_VISUAL_ART_POSITION_Y: 0.5,
-	CFG_VISUAL_LETTER_OUTLINES: 0,
-	CFG_TOUCH_VISIBLE: true,
-	CFG_LEFT_MARGIN: 16.0,
-	CFG_TOP_MARGIN: 8.0,
-	CFG_TEXT_LENGTH: 0.5,
-	CFG_TITLE_SIZE: 0.25,
-	CFG_SYSTEM_TITLE: "SYSTEMS",
-}
-
 const PATH_CONFIG = "/Config/"
 const PATH_GAMES = "/Games/"
 const PATH_IMAGES = "/Imgs/"
@@ -79,8 +17,6 @@ var scroll_offset = 0
 
 var current_component = null
 var current_directory = ""
-var previous_screen = ""
-var current_screen = ""
 
 var pending_intent = ""
 var pending_game = ""
@@ -188,7 +124,6 @@ var img_texture_override = null
 
 var clean_names = {}
 
-# Called when the node enters the scene tree for the first time.
 func dir_walker(root):
 	var dir = DirAccess.open(root)
 	dir.list_dir_begin()
@@ -210,11 +145,11 @@ func _ready():
 	else:
 		title_offset = 0
 	BACKDROP.size = Vector2(window_width, window_height)
-	root_path = get_setting(CFG_ROOT)
+	root_path = Settings.get_setting(Settings.CFG_ROOT)
 	if root_path != null and !DirAccess.dir_exists_absolute(root_path):
 		root_path = null
 
-	BACKDROP.modulate = get_setting(CFG_BG_COLOR)
+	BACKDROP.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
 
 	clean_regex = RegEx.new()
 	clean_regex.compile("\\s*\\(.+\\)\\s*|\\s*\\[.+\\]\\s*|T.Eng+\\$|\\.nkit")
@@ -225,7 +160,7 @@ func _ready():
 	get_tree().get_root().size_changed.connect(resize)
 
 	set_up_slots()
-	
+
 	for pad in Input.get_connected_joypads():
 		print("Joy {0}: {1} ({2}) {3}".format([Input.get_joy_guid(pad), pad, Input.get_joy_name(pad)]))
 
@@ -233,16 +168,13 @@ func _ready():
 	drop_shadow = cover_art.duplicate()
 	drop_shadow.modulate = Color.BLACK
 	border = $Pixel.duplicate()
-	border.modulate = Global.get_setting(Global.CFG_BG_COLOR)
-	#border.scale = Vector2(0.99, 0.99)
-	#cover_art.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-	#cover_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+	border.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
 	cover.size = Vector2(Global.window_width * 0.25, Global.window_height * 0.75)
 	cover.add_child.call_deferred(drop_shadow)
 	cover.add_child.call_deferred(border)
 	cover.add_child.call_deferred(cover_art)
-	cover.position.y = window_height * get_setting(CFG_VISUAL_ART_POSITION_Y)
-	cover.position.x = window_width * get_setting(CFG_VISUAL_ART_POSITION_X)
+	cover.position.y = window_height * Settings.get_setting(Settings.CFG_VISUAL_ART_POSITION_Y)
+	cover.position.x = window_width * Settings.get_setting(Settings.CFG_VISUAL_ART_POSITION_X)
 
 	var list_file_contents = get_list_file_contents()
 	if not list_file_contents.has("hidden"):
@@ -250,15 +182,15 @@ func _ready():
 	for item in list_file_contents.get("hidden", []):
 		HIDDEN_LIST[item] = true
 
-	if get_setting(CFG_CONFIRM_SWAP):
-		Global.swap_confirm_key()
+	if Settings.get_setting(Settings.CFG_CONFIRM_SWAP):
+		swap_confirm_key()
 
 	OS.request_permissions()
 
 	get_positions_files()
 
 	show_message("Welcome to PlainLauncher!")
-	go_to_main()
+	Navigator.go_to_main()
 
 func version_matches():
 	var version_file = FileAccess.get_file_as_string("user://version.txt")
@@ -269,6 +201,39 @@ func store_version():
 	if version_file == null:
 		return
 	version_file.store_string(VERSION)
+
+const RECENT_MAX = 50
+
+func get_recent_list() -> Array:
+	if root_path == null:
+		return []
+	var recent_path = root_path + "/Config/COMMON/recent.json"
+	if not FileAccess.file_exists(recent_path):
+		return []
+	var content = JSON.parse_string(FileAccess.get_file_as_string(recent_path))
+	if content == null or not content is Array:
+		return []
+	return content
+
+func log_recent(game_path: String, system: String, display_name: String):
+	if root_path == null:
+		return
+	var recent = get_recent_list()
+	for i in range(recent.size() - 1, -1, -1):
+		if recent[i].get("path") == game_path:
+			recent.remove_at(i)
+	recent.push_front({
+		"path": game_path,
+		"system": system,
+		"name": display_name,
+		"timestamp": Time.get_unix_time_from_system(),
+	})
+	while recent.size() > RECENT_MAX:
+		recent.pop_back()
+	var f = FileAccess.open(root_path + "/Config/COMMON/recent.json", FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(recent, "\t"))
+		f.close()
 
 func get_list_file_contents():
 	if root_path == null:
@@ -333,20 +298,19 @@ func load_external_texture(path):
 	return image_texture
 
 func set_up_slots():
+	var scaled_text_height = default_text_height * Settings.get_setting(Settings.CFG_SCALER)
 
-	var scaled_text_height = default_text_height * get_setting(CFG_SCALER)
-
-	var outline_thickness = get_setting(CFG_VISUAL_LETTER_OUTLINES)
-	left_bound = get_setting(CFG_LEFT_MARGIN)
+	var outline_thickness = Settings.get_setting(Settings.CFG_VISUAL_LETTER_OUTLINES)
+	left_bound = Settings.get_setting(Settings.CFG_LEFT_MARGIN)
 	title = $SlotHolder/Title
 	title.size.x = Global.window_width - left_bound * 2
 	title.size.y = 0
-	title.horizontal_alignment = get_setting(CFG_VISUAL_TITLE_ORIENTATION)
+	title.horizontal_alignment = Settings.get_setting(Settings.CFG_VISUAL_TITLE_ORIENTATION)
 	title.add_theme_constant_override("outline_size", outline_thickness)
-	title.position.y = get_setting(CFG_TOP_MARGIN)
+	title.position.y = Settings.get_setting(Settings.CFG_TOP_MARGIN)
 	title.position.x = 0
 	title.uppercase = true
-	title.set("theme_override_font_sizes/font_size", scaled_text_height * get_setting(CFG_TITLE_SIZE))
+	title.set("theme_override_font_sizes/font_size", scaled_text_height * Settings.get_setting(Settings.CFG_TITLE_SIZE))
 	title.size.y = 0
 	if title_can_be_blank and title.text == "":
 		title.position.y -= title.size.y
@@ -358,16 +322,15 @@ func set_up_slots():
 	message = $SlotHolder/Body.duplicate()
 	add_child.call_deferred(message)
 	message.position.y = Global.window_height - text_height
-	#message.size.x = Global.window_width / 2.0
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	message.size.x = Global.window_width * get_setting(CFG_TEXT_LENGTH)
+	message.size.x = Global.window_width * Settings.get_setting(Settings.CFG_TEXT_LENGTH)
 	message.position.x = left_bound
-	if get_setting(CFG_VISUAL_BODY_ORIENTATION) == HORIZONTAL_ALIGNMENT_RIGHT:
+	if Settings.get_setting(Settings.CFG_VISUAL_BODY_ORIENTATION) == HORIZONTAL_ALIGNMENT_RIGHT:
 		message.position.x = -2 * left_bound
-	message.modulate = get_setting(CFG_FG_COLOR)
+	message.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
 	message.set("theme_override_font_sizes/font_size", scaled_text_height / 2.0)
-	$Pixel.modulate = get_setting(CFG_FG_COLOR)
-	$Pixel.scale = Vector2(16 * get_setting(CFG_SCALER), 16 * get_setting(CFG_SCALER))
+	$Pixel.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
+	$Pixel.scale = Vector2(16 * Settings.get_setting(Settings.CFG_SCALER), 16 * Settings.get_setting(Settings.CFG_SCALER))
 	$Pixel.visible = false
 
 	for i in range(visible_slots.size()):
@@ -377,10 +340,9 @@ func set_up_slots():
 	visible_slots.clear()
 	fav_indicators.clear()
 
-	var body_alignment = get_setting(CFG_VISUAL_BODY_ORIENTATION)
+	var body_alignment = Settings.get_setting(Settings.CFG_VISUAL_BODY_ORIENTATION)
 	for i in range(1, (Global.window_height - title.size.y) / (scaled_text_height / 2.0) + 1):
 		var new_slot: Label = message.duplicate()
-		#new_slot.size.x = Global.window_width / 2.0
 		slot_offset = left_bound
 
 		new_slot.horizontal_alignment = body_alignment
@@ -395,21 +357,14 @@ func set_up_slots():
 		if new_slot.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT:
 			fav_indicator.position.x = new_slot.size.x + left_bound / 2.0
 		slot_size = new_slot.size
-		fav_indicator.position.y = text_height * get_setting(CFG_SCALER) / 4.0
+		fav_indicator.position.y = text_height * Settings.get_setting(Settings.CFG_SCALER) / 4.0
 		fav_indicators.append(fav_indicator)
 
 	message.visible = false
-	var custom_font = get_setting(CFG_FONT)
+	var custom_font = Settings.get_setting(Settings.CFG_FONT)
 	if custom_font != null and ResourceLoader.exists(custom_font):
 		font = ResourceLoader.load(custom_font)
 	refresh_fonts()
-	#show_options(0)
-
-func go_to_main():
-	if not root_path or not version_matches():
-		go_to("confirm_set")
-	else:
-		go_to("system_browser")
 
 func refresh_alias(system="COMMON"):
 	if root_path != null and FileAccess.file_exists(root_path + "/" + Global.PATH_CONFIG + "/" + system + "/alias.json"):
@@ -426,84 +381,84 @@ func refresh_fonts():
 
 func cycle_options(cfg_key, options_list):
 	print("SETTING OPTION " + cfg_key + " with list " + str(options_list))
-	if get_setting(cfg_key) not in options_list:
-		store_setting(cfg_key, options_list[0])
+	if Settings.get_setting(cfg_key) not in options_list:
+		Settings.store(cfg_key, options_list[0])
 		return
 	for i in range(0, options_list.size()):
 		var opt = options_list[i]
 		var next = i+1
 		if i == options_list.size() - 1:
 			next = 0
-		if get_setting(cfg_key) == opt:
-			store_setting(cfg_key, options_list[next])
+		if Settings.get_setting(cfg_key) == opt:
+			Settings.store(cfg_key, options_list[next])
 			break
 
 func cycle_sizes():
-	cycle_options(CFG_SCALER, [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0])
+	cycle_options(Settings.CFG_SCALER, [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0])
 	set_up_slots()
 	show_options(scroll_offset)
-	set_all_text_color(get_setting(CFG_FG_COLOR))
+	set_all_text_color(Settings.get_setting(Settings.CFG_FG_COLOR))
 	highlight_selection(option_selection)
 	refresh_art()
 
 func cycle_cover_sizes():
-	cycle_options(CFG_VISUAL_COVER_SIZE, [Vector2.ZERO, Vector2(0.2, 0.3), Vector2(0.4, 0.6), Vector2(0.5, 0.8)])
+	cycle_options(Settings.CFG_VISUAL_COVER_SIZE, [Vector2.ZERO, Vector2(0.2, 0.3), Vector2(0.4, 0.6), Vector2(0.5, 0.8)])
 	set_up_slots()
 	refresh_art()
 	show_options(scroll_offset)
-	set_all_text_color(get_setting(CFG_FG_COLOR))
+	set_all_text_color(Settings.get_setting(Settings.CFG_FG_COLOR))
 	highlight_selection(option_selection)
 
 func cycle_drop_shadow_locations():
-	cycle_options(CFG_VISUAL_DROP_SHOW, [Vector2.ZERO, Vector2(32, 32), Vector2(-32, 32), Vector2(-32, -32), Vector2(32, -32)])
+	cycle_options(Settings.CFG_VISUAL_DROP_SHOW, [Vector2.ZERO, Vector2(32, 32), Vector2(-32, 32), Vector2(-32, -32), Vector2(32, -32)])
 	refresh_art()
 
 func cycle_border_thickness():
-	cycle_options(CFG_VISUAL_BORDER, [Vector2.ZERO, Vector2(4, 4), Vector2(8, 8), Vector2(16, 16), Vector2(32, 32), Vector2(64, 64)])
-	if current_screen == "system_browser" and get_setting(CFG_VISUAL_BORDER) == Vector2.ZERO:
-		store_setting(CFG_VISUAL_SYSTEM_BORDER, false)
+	cycle_options(Settings.CFG_VISUAL_BORDER, [Vector2.ZERO, Vector2(4, 4), Vector2(8, 8), Vector2(16, 16), Vector2(32, 32), Vector2(64, 64)])
+	if Navigator.current_screen == "system_browser" and Settings.get_setting(Settings.CFG_VISUAL_BORDER) == Vector2.ZERO:
+		Settings.store(Settings.CFG_VISUAL_SYSTEM_BORDER, false)
 	refresh_art()
 
 func cycle_title_allignment():
-	cycle_options(CFG_VISUAL_TITLE_ORIENTATION, [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT])
+	cycle_options(Settings.CFG_VISUAL_TITLE_ORIENTATION, [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT])
 	set_up_slots()
 
 func cycle_body_allignment():
-	cycle_options(CFG_VISUAL_BODY_ORIENTATION, [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT])
+	cycle_options(Settings.CFG_VISUAL_BODY_ORIENTATION, [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT])
 	set_up_slots()
-	set_all_text_color(get_setting(CFG_FG_COLOR))
+	set_all_text_color(Settings.get_setting(Settings.CFG_FG_COLOR))
 
 func cycle_art_alignment():
-	cycle_options(CFG_VISUAL_ART_ORIENTATION, [0.25, 0.5, 0.75])
+	cycle_options(Settings.CFG_VISUAL_ART_ORIENTATION, [0.25, 0.5, 0.75])
 	refresh_art()
 
 func cycle_art_opacity():
-	cycle_options(CFG_VISUAL_COVER_OPACITY, [0.1, 0.25, 0.5, 0.75, 0.9, 1.0])
+	cycle_options(Settings.CFG_VISUAL_COVER_OPACITY, [0.1, 0.25, 0.5, 0.75, 0.9, 1.0])
 	refresh_art()
 
 func cycle_left_margin():
-	cycle_options(CFG_LEFT_MARGIN, [0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0])
+	cycle_options(Settings.CFG_LEFT_MARGIN, [0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0])
 	set_up_slots()
 
 func cycle_top_margin():
-	cycle_options(CFG_TOP_MARGIN, [0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0])
+	cycle_options(Settings.CFG_TOP_MARGIN, [0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0])
 	set_up_slots()
 
 func cycle_title_size():
-	cycle_options(CFG_TITLE_SIZE, [0.1, 0.25, 0.5, 0.75, 1.0])
+	cycle_options(Settings.CFG_TITLE_SIZE, [0.1, 0.25, 0.5, 0.75, 1.0])
 	set_up_slots()
 
 func cycle_system_title():
 	print("HERE")
-	cycle_options(CFG_SYSTEM_TITLE, ["SYSTEMS", "", "PLAIN LAUNCHER", "MAIN", "ALL"])
+	cycle_options(Settings.CFG_SYSTEM_TITLE, ["SYSTEMS", "", "PLAIN LAUNCHER", "MAIN", "ALL"])
 	set_up_slots()
 
 func cycle_line_length():
-	cycle_options(CFG_TEXT_LENGTH, [0.25, 0.4, 0.5, 0.6, 0.75, 1.0])
+	cycle_options(Settings.CFG_TEXT_LENGTH, [0.25, 0.4, 0.5, 0.6, 0.75, 1.0])
 	set_up_slots()
 
 func toggle_touch_visible():
-	store_setting(CFG_TOUCH_VISIBLE, !get_setting(CFG_TOUCH_VISIBLE))
+	Settings.store(Settings.CFG_TOUCH_VISIBLE, !Settings.get_setting(Settings.CFG_TOUCH_VISIBLE))
 
 func toggle_text_outline():
 	var outline_thickness = 8
@@ -511,7 +466,7 @@ func toggle_text_outline():
 		outline_thickness = 0
 	for child in slot_holder.get_children():
 		child.add_theme_constant_override("outline_size", outline_thickness)
-	store_setting(CFG_VISUAL_LETTER_OUTLINES, outline_thickness)
+	Settings.store(Settings.CFG_VISUAL_LETTER_OUTLINES, outline_thickness)
 
 func show_message(msg, priority=false):
 	if msg == "" or msg == null:
@@ -521,14 +476,13 @@ func show_message(msg, priority=false):
 	if priority:
 		show_message("")
 	if message.text != "" and message.modulate.a > 0.05:
-		# Queue up multiple messages in a row
 		message_queue.append(msg)
 		return
 	if message.text.to_lower() == msg.to_lower():
 		return
 	message.text = ALIAS_MAP.get(msg, msg)
-	message.uppercase = get_setting(CFG_CAPS_LOCK)
-	message.position.x = Global.window_width - text_height - (message.size.x * get_setting(CFG_SCALER))
+	message.uppercase = Settings.get_setting(Settings.CFG_CAPS_LOCK)
+	message.position.x = Global.window_width - text_height - (message.size.x * Settings.get_setting(Settings.CFG_SCALER))
 	message.modulate.a = 1.0
 
 func update_title(new_title):
@@ -536,34 +490,13 @@ func update_title(new_title):
 		title.text = new_title
 	else:
 		title.text = ALIAS_MAP.get(new_title.to_lower(), new_title)
-	#title.uppercase = capitalized
 
 func set_slot(index, value):
 	if no_alias:
 		visible_slots[index].text = value
 	else:
 		visible_slots[index].text = ALIAS_MAP.get(value.to_lower(), value)
-	visible_slots[index].uppercase = get_setting(CFG_CAPS_LOCK)
-
-func get_setting(key):
-	if global_settings == null:
-		if !FileAccess.file_exists(SETTINGS_FILE):
-			return DEFAULT_SETTINGS.get(key)
-		var settings_file = FileAccess.open(SETTINGS_FILE, FileAccess.READ)
-		global_settings = settings_file.get_var()
-		print("LOAD SETTINGS " + key + ": " + str(global_settings))
-	var setting = global_settings.get(key, DEFAULT_SETTINGS.get(key))
-	return setting
-
-func store_setting(key, value):
-	print("STORE SETTING " + key + ": " + str(value) + " TO " + SETTINGS_FILE)
-	if global_settings == null:
-		global_settings = {}
-	global_settings[key] = value
-	var update_settings: FileAccess = FileAccess.open(SETTINGS_FILE, FileAccess.WRITE)
-	print(global_settings)
-	update_settings.store_var(global_settings)
-	update_settings.close()
+	visible_slots[index].uppercase = Settings.get_setting(Settings.CFG_CAPS_LOCK)
 
 func clear_all_settings():
 	var config_dir = DirAccess.open(root_path + "/" + Global.PATH_CONFIG)
@@ -581,10 +514,10 @@ func clear_all_settings():
 
 func set_root_path(path):
 	root_path = path
-	store_setting(CFG_ROOT, path)
+	Settings.store(Settings.CFG_ROOT, path)
 
 func caps_lock():
-	store_setting(CFG_CAPS_LOCK, !get_setting(CFG_CAPS_LOCK))
+	Settings.store(Settings.CFG_CAPS_LOCK, !Settings.get_setting(Settings.CFG_CAPS_LOCK))
 	update_title(title.text)
 	show_message(message.text)
 	show_options(scroll_offset)
@@ -602,34 +535,7 @@ func set_for_all_text(key, value, title_included=true):
 		text.set(key, value)
 
 func special_allowed():
-	return current_screen == "system_browser" or current_screen == "game_browser" or current_screen == "android_apps"
-
-func go_to(target, new_message="", force=false):
-	store_position()
-	var refresh = target == current_screen
-	if !force and !refresh and target == "special" and !special_allowed():
-		print("Cannot go to special from " + current_screen)
-		highlight_selection()
-		return
-	if on_leave_component != null:
-		on_leave_component.call()
-		on_leave_component = null
-	BACKDROP.modulate = get_setting(CFG_BG_COLOR)
-	set_all_text_color(get_setting(CFG_FG_COLOR))
-	print("GOTO " + target)
-	if current_screen != target:
-		previous_screen = current_screen
-	current_screen = target
-	message.text = new_message
-	populate_filter = null
-	post_draw_callback = null
-	post_scroll_callback = null
-	no_alias = false
-	img_texture_override = null
-	get_tree().change_scene_to_file.call_deferred("res://scenes/subscreens/" + target + ".tscn")
-
-func back_to_previous_screen():
-	go_to(previous_screen, "", true)
+	return Navigator.current_screen == "system_browser" or Navigator.current_screen == "game_browser" or Navigator.current_screen == "android_apps"
 
 func clear_visible(title_text="", custom_options=[]):
 	option_list.clear()
@@ -651,21 +557,18 @@ func clear_visible(title_text="", custom_options=[]):
 		highlight_selection()
 
 func refresh_art(image_path=Global.get_image_path(), alt=false):
-	#var err = image.load(Global.root_path + PATH_IMGS + selected_system + "/" + Global.visible_slots[Global.selected].text + ".png")
-	#print("Image load result: " + str(err))
 	if !FileAccess.file_exists(image_path) and img_texture_override == null:
 		cover_art.texture = null
 		cover.visible = false
 		if not alt and Global.alt_art_path != "":
 			var altPath = Global.alt_art_path + "/" + Global.get_selected().filename.get_basename() + ".png"
-			#print("looking for alt art at " + altPath)
 			return refresh_art(altPath, true)
 		return
 	var art_file = FileAccess.open(image_path, FileAccess.READ)
-	cover.modulate.a = get_setting(CFG_VISUAL_COVER_OPACITY)
-	cover.position.y = window_height * get_setting(CFG_VISUAL_ART_POSITION_Y)
-	cover.position.x = window_width * get_setting(CFG_VISUAL_ART_POSITION_X)
-	if get_setting(CFG_VISUAL_COVER_SIZE) != Vector2.ZERO:
+	cover.modulate.a = Settings.get_setting(Settings.CFG_VISUAL_COVER_OPACITY)
+	cover.position.y = window_height * Settings.get_setting(Settings.CFG_VISUAL_ART_POSITION_Y)
+	cover.position.x = window_width * Settings.get_setting(Settings.CFG_VISUAL_ART_POSITION_X)
+	if Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE) != Vector2.ZERO:
 		if img_texture_override != null:
 			cover_art.texture = img_texture_override
 		else:
@@ -675,16 +578,12 @@ func refresh_art(image_path=Global.get_image_path(), alt=false):
 				return
 			image.convert(Image.FORMAT_RGBA8)
 			cover_art.texture = ImageTexture.create_from_image(image)
-		#var effective_height_offset = title.size.y
-		#if get_setting(CFG_SCALER) <= 0.5 or get_setting(CFG_VISUAL_COVER_SIZE).x >= 1.0:
-			#effective_height_offset = 0
-		#var effective_height = (Global.window_height - effective_height_offset) # height with title
-		var scale_ratio_x = ((Global.window_width) * get_setting(CFG_VISUAL_COVER_SIZE).x) / (cover_art.texture.get_size().x + get_setting(CFG_VISUAL_BORDER).x)
-		var scale_ratio_y = (Global.window_height * get_setting(CFG_VISUAL_COVER_SIZE).y) / (cover_art.texture.get_size().y + + get_setting(CFG_VISUAL_BORDER).y)
-		if get_setting(CFG_VISUAL_COVER_SIZE).x == 1.0:
+		var scale_ratio_x = ((Global.window_width) * Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE).x) / (cover_art.texture.get_size().x + Settings.get_setting(Settings.CFG_VISUAL_BORDER).x)
+		var scale_ratio_y = (Global.window_height * Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE).y) / (cover_art.texture.get_size().y + Settings.get_setting(Settings.CFG_VISUAL_BORDER).y)
+		if Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE).x == 1.0:
 			scale_ratio_x = Global.window_width / cover_art.texture.get_size().x
 			scale_ratio_y = Global.window_height / cover_art.texture.get_size().y
-		if get_setting(CFG_VISUAL_COVER_SIZE).x > 1.0:
+		if Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE).x > 1.0:
 			scale_ratio_x = 2 * Global.window_width / cover_art.texture.get_size().x
 			scale_ratio_y = 2 * Global.window_height / cover_art.texture.get_size().y
 		var scale_ratio = min(scale_ratio_x, scale_ratio_y)
@@ -692,31 +591,30 @@ func refresh_art(image_path=Global.get_image_path(), alt=false):
 		cover_art.scale = Vector2(scale_ratio, scale_ratio)
 		cover.z_index = 4000
 
-		if get_setting(CFG_VISUAL_BORDER) != Vector2.ZERO:
+		if Settings.get_setting(Settings.CFG_VISUAL_BORDER) != Vector2.ZERO:
 			border.visible = true
-			border.scale = cover_art.texture.get_size() * cover_art.scale + get_setting(CFG_VISUAL_BORDER)
-			border.modulate = get_setting(CFG_FG_COLOR)
+			border.scale = cover_art.texture.get_size() * cover_art.scale + Settings.get_setting(Settings.CFG_VISUAL_BORDER)
+			border.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
 		else:
 			border.visible = false
-		if !get_setting(CFG_VISUAL_SYSTEM_BORDER) and (current_screen == "system_browser" or current_screen == "special"):
+		if !Settings.get_setting(Settings.CFG_VISUAL_SYSTEM_BORDER) and (Navigator.current_screen == "system_browser" or Navigator.current_screen == "special"):
 			border.visible = false
 
-		if get_setting(CFG_VISUAL_DROP_SHOW) != Vector2.ZERO:
+		if Settings.get_setting(Settings.CFG_VISUAL_DROP_SHOW) != Vector2.ZERO:
 			drop_shadow.visible = true
 			drop_shadow.modulate.v = 0
-			drop_shadow.position = cover_art.position + get_setting(CFG_VISUAL_DROP_SHOW)
+			drop_shadow.position = cover_art.position + Settings.get_setting(Settings.CFG_VISUAL_DROP_SHOW)
 			if border.visible:
 				drop_shadow.texture = border.texture
 				drop_shadow.scale = border.scale
 			else:
 				drop_shadow.texture = cover_art.texture
 				drop_shadow.scale = cover_art.scale
-				drop_shadow.position = cover_art.position + get_setting(CFG_VISUAL_DROP_SHOW)
+				drop_shadow.position = cover_art.position + Settings.get_setting(Settings.CFG_VISUAL_DROP_SHOW)
 		else:
 			drop_shadow.visible = false
 
 		cover.visible = true
-		#$BoxContainer.position = Vector2(Global.window_width * 0.75, Global.window_height / 2.0) - cover_art.size / 2.0
 	else:
 		cover_art.texture = null
 		cover.visible = false
@@ -733,7 +631,6 @@ func highlight_selection(next_selection=option_selection):
 			slot.modulate.a = 0.1
 		slot.scale = Vector2(1.0, 1.0)
 	option_selection = next_selection
-	#visible_slots[option_selection-scroll_offset].position.x = 64
 	if option_list.size() < visible_slots.size():
 		scroll_offset = 0
 	elif option_list.is_empty():
@@ -754,7 +651,6 @@ func highlight_selection(next_selection=option_selection):
 		fav_indicators[option_selection-scroll_offset].modulate.a = 1.0
 	else:
 		show_options(option_selection - visible_slots.size())
-	#visible_slots[option_selection-scroll_offset].scale = Vector2(1.2, 1.1)
 	if post_draw_callback != null:
 		post_draw_callback.call()
 
@@ -768,9 +664,16 @@ func show_options(offset=0):
 	if option_selection - scroll_offset > visible_slots.size():
 		scroll_offset = option_selection - visible_slots.size() + 1
 		offset = scroll_offset
+	# Clamp so the last page is always full — no empty slots at the bottom
+	var max_offset = max(0, option_list.size() - visible_slots.size())
+	if offset > max_offset:
+		offset = max_offset
+		scroll_offset = offset
 	for i in range(0, Global.visible_slots.size()):
-		if i >= option_list.size():
-			break
+		if i+offset >= option_list.size():
+			set_slot(i, "")
+			fav_indicators[i].visible = false
+			continue
 		set_slot(i, option_list[i+offset].clean)
 		fav_indicators[i].visible = false
 		if favorites_list.has(option_list[i+offset].absolute_path):
@@ -797,7 +700,7 @@ func favorite_name(system, selected_name):
 
 func add_favorite():
 	var item = Global.get_selected()
-	if current_screen == "special":
+	if Navigator.current_screen == "special":
 		item = Global.special_item
 	Global.populate_favorites()
 	if item.favorite_dir or Global.favorites_list.has(item.absolute_path) or Global.subscreen == "favorites":
@@ -817,7 +720,7 @@ func add_favorite():
 func remove_favorite():
 	Global.populate_favorites()
 	var item = Global.get_selected()
-	if current_screen == "special":
+	if Navigator.current_screen == "special":
 		item = Global.special_item
 	var fav_dir_path = Global.root_path + Global.PATH_GAMES + "FAVORITES"
 	var fav_dir = DirAccess.open(fav_dir_path)
@@ -835,11 +738,11 @@ func remove_favorite():
 	Global.store_position()
 	Global.populate_favorites()
 	if removed_from_favorite_list:
-		Global.go_to_main()
+		Navigator.go_to_main()
 
 func toggle_favorite():
 	var item = Global.get_selected()
-	if current_screen == "special":
+	if Navigator.current_screen == "special":
 		item = Global.special_item
 	if item.clean == "":
 		return
@@ -860,7 +763,6 @@ func hide_item():
 	print("HIDE " + item.absolute_path)
 	HIDDEN_LIST[item.absolute_path] = true
 	update_list_file_contents("hidden", HIDDEN_LIST.keys())
-	#print(get_list_file_contents())
 	show_options(scroll_offset)
 
 func unhide_item():
@@ -876,7 +778,7 @@ func unhide_item():
 
 func toggle_hidden():
 	Global.store_position()
-	if current_screen == "settings":
+	if Navigator.current_screen == "settings":
 		return
 	var item = Global.get_selected()
 	if Global.special_item != null:
@@ -914,10 +816,6 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], s
 				if directory.dir_exists(file_name):
 					if skip_empty_dirs and directory.get_files_at(directory.get_current_dir() + "/" + file_name).is_empty() and directory.get_directories_at(directory.get_current_dir() + "/" + file_name).is_empty():
 						print("Skipping empty directory " + directory.get_current_dir() + "/" + file_name)
-					# Only include directories with something in them
-					#var try_dir = DirAccess.open(current_directory + "/" + file_name)
-					#if not try_dir.get_files().is_empty():
-						#file_names_unsorted.append(file_name)
 					else:
 						file_names.append(file_name)
 			else:
@@ -934,33 +832,32 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], s
 		if FileAccess.file_exists(directory.get_current_dir() + "/" + path):
 			file_names.append(path)
 			ALIAS_MAP[clean_regex.sub(path.get_basename(), "", true)] = unique_paths[path]
-			#print("Adding unique path [" + clean_regex.sub(path.get_basename(), "") + "=" + unique_paths[path] + "]")
 	for special_file in special:
 		file_names.push_front(special_file)
 	for file in file_names:
-		var option = OPTIONS_MAKER.instantiate()
-		option.filename = file
-		option.absolute_path = directory.get_current_dir() + "/" + file
+		var opt = OPTIONS_MAKER.instantiate()
+		opt.filename = file
+		opt.absolute_path = directory.get_current_dir() + "/" + file
 		if !clean_names.has(file):
 			var cleaned = clean_regex.sub(file.get_basename(), "", true)
 			clean_names[file] = ALIAS_MAP.get(cleaned, cleaned)
-		option.clean = clean_names.get(file)
+		opt.clean = clean_names.get(file)
 
 		var use_system = system
 		if dirs_only:
-			option.is_dir = true
+			opt.is_dir = true
 			use_system = file
 		if system == "FAVORITES":
-			option.favorite_dir = true
+			opt.favorite_dir = true
 			use_system = file.split("]")[0].replace("[", "")
-		option.system = use_system
+		opt.system = use_system
 		if populate_filter != null:
 			var populate_filter_callback: Callable = populate_filter
-			if populate_filter_callback.call(option):
+			if populate_filter_callback.call(opt):
 				continue
-		if filter_out_hidden(option):
+		if filter_out_hidden(opt):
 			continue
-		Global.option_list.append(option)
+		Global.option_list.append(opt)
 	option_selection = 0
 	restore_position()
 	highlight_selection()
@@ -1000,7 +897,6 @@ func move_up():
 	highlight_selection(option_selection-1)
 
 func build_system_settings_from_options(system_for_settings=Global.subscreen):
-	# No settings saved, use the first option from the options lists
 	var system_settings_options = get_system_settings_options(system_for_settings)
 	if system_settings_options == null or system_settings_options.is_empty():
 		return {}
@@ -1053,10 +949,7 @@ func get_system_settings(system_for_settings=Global.subscreen):
 	if FileAccess.file_exists(current_settings_path):
 		system_settings = JSON.parse_string(FileAccess.get_file_as_string(current_settings_path))
 	else:
-		# No settings saved, use the first option from the options lists
 		system_settings = build_system_settings_from_options()
-	#if not system_settings.has("Alternate Art Path"):
-		#system_settings["Alternate Art Path"] = ""
 	return system_settings
 
 func get_paths_filepath(prefix=""):
@@ -1123,19 +1016,19 @@ func get_selected():
 	return option_list[option_selection]
 
 func get_stored_scroll_offset():
-	if current_screen == "file_browser":
+	if Navigator.current_screen == "file_browser":
 		return scroll_offsets.get(message.text.to_lower())
 	else:
 		return scroll_offsets.get(title.text.to_lower())
 
 func get_stored_cursor_position():
-	if current_screen == "file_browser":
+	if Navigator.current_screen == "file_browser":
 		return cursor_positions.get(message.text.to_lower())
 	else:
 		return cursor_positions.get(title.text.to_lower())
 
 func store_position():
-	if current_screen == "file_browser":
+	if Navigator.current_screen == "file_browser":
 		cursor_positions[message.text.to_lower()] = option_selection
 		scroll_offsets[message.text.to_lower()] = scroll_offset
 	else:
@@ -1148,11 +1041,8 @@ func restore_position():
 
 	if get_stored_cursor_position() != null:
 		while option_selection < option_list.size():
-			#print("Looking for " + get_stored_cursor_position() + " against " + get_selected().absolute_path)
 			if get_selected().absolute_path == get_stored_cursor_position():
-				#print("Found it at index " + str(option_selection) + " and scroll offset " + str(scroll_offset))
 				scroll_offset = get_stored_scroll_offset()
-				#print("Using stored scroll offset " + str(scroll_offset))
 				break
 			option_selection += 1
 			scroll_offset = max(0, option_selection - visible_slots.size())
@@ -1170,20 +1060,13 @@ func filter_out_hidden(item):
 		return false
 	return HIDDEN_LIST.get(item.absolute_path, false)
 
-func go_to_special():
-	special_item = Global.get_selected()
-	if current_screen == "system_browser":
-		Global.subscreen = special_item.filename
-	go_to("special")
-	pending_special = false
-
 func on_scroll():
 	if post_scroll_callback != null:
 		post_scroll_callback.call()
 	refresh_art()
 
 func cursor_locked():
-	return current_screen == "color_picker" or current_screen == "art_placer"
+	return Navigator.current_screen == "color_picker" or Navigator.current_screen == "art_placer"
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
@@ -1240,43 +1123,8 @@ func _process(delta):
 						move_up()
 				held_time = Time.get_ticks_msec()
 				on_scroll()
-		if Input.is_action_just_pressed("shoulder_l"):
-			#if !capitalized:
-				#caps_lock()
-			#else:
-				#caps_lock()
-				#cycle_sizes()
-			cycle_sizes()
-		if Input.is_action_just_pressed("shoulder_r"):
-			#if !capitalized:
-				#caps_lock()
-			#else:
-				#caps_lock()
-				#cycle_sizes()
-			if cover.visible or get_setting(CFG_VISUAL_COVER_SIZE) == Vector2.ZERO:
-				cycle_cover_sizes()
-		if Input.is_action_just_pressed("r3"):
-			if cover.visible:
-				cycle_drop_shadow_locations()
-		if Input.is_action_just_pressed("l3"):
-			if cover.visible:
-				cycle_border_thickness()
-		#if Input.is_action_just_pressed("hide"):
-			#Global.store_position()
-			#toggle_hidden()
-			#go_to(current_screen)
-			#Global.restore_position()
 		if Input.is_action_just_pressed("special"):
-			go_to_special()
-		if Input.is_action_just_pressed("body_orient"):
-			cycle_body_allignment()
-			Global.go_to(current_screen)
-		if Input.is_action_just_pressed("title_orient"):
-			cycle_title_allignment()
-			Global.go_to(current_screen)
-		if Input.is_action_just_pressed("art_orient"):
-			cycle_art_alignment()
-			Global.go_to(current_screen)
+			Navigator.go_to_special()
 
 func _physics_process(delta):
 	if touch_position == null or touch_start_position == null:
@@ -1313,14 +1161,13 @@ func _physics_process(delta):
 		confirm_hold_time = Time.get_ticks_msec()
 	if !confirm_held() and confirm_hold_time != null:
 		if pending_special:
-			go_to_special()
+			Navigator.go_to_special()
 			return
 		confirm_hold_time = null
 
 	if option_selection - scroll_offset >= visible_slots.size():
 		print("OPTION SELECTION: " + str(option_selection) + " SCROLL OFFSET " + str(scroll_offset) + " VISIBLE_SLOT SIZE " + str(visible_slots.size()))
 		scroll_offset = option_selection - visible_slots.size() + 1
-	# Touch controls for options
 	if visible_slots.is_empty():
 		return
 	if option_selection == 0 and scroll_offset != 0:
@@ -1350,12 +1197,10 @@ func _physics_process(delta):
 		pending_special = false
 	if pending_special and ((confirm_swapped and Input.is_action_just_released("back")) or (!confirm_swapped and Input.is_action_just_released("select"))):
 		touch_check_time = Time.get_ticks_msec() + 1000
-		go_to_special()
+		Navigator.go_to_special()
 		return
 
-	# Touch controls to go back
 	if control_tilt.x < -0.5:
-		# could be held
 		if title.position.x > 0:
 			title.position.x = lerp(float(title.position.x), 0.0, 0.3)
 			if title.position.x > left_bound / 2.0:
@@ -1375,8 +1220,6 @@ func _physics_process(delta):
 		return
 
 	if Time.get_ticks_msec() > touch_check_time:
-		var control_angle = control_tilt.angle()
-
 		if not pending_back and not pending_special:
 			var moving = false
 			if control_tilt.y < -0.1:
@@ -1390,10 +1233,9 @@ func _physics_process(delta):
 			if moving:
 				on_scroll()
 				pending_special = false
-				var drag_str_y = (8.0 - abs(control_tilt.y)) / (8.0)
 				touch_check_time = Time.get_ticks_msec() + tilt_ratio * 200
 	else:
-		TOUCH_POINTS.modulate = TOUCH_POINTS.modulate.lerp(get_setting(CFG_FG_COLOR), 0.05)
+		TOUCH_POINTS.modulate = TOUCH_POINTS.modulate.lerp(Settings.get_setting(Settings.CFG_FG_COLOR), 0.05)
 
 ###############################################################
 #
@@ -1401,13 +1243,13 @@ func _physics_process(delta):
 #
 ###############################################################
 func vibrate(duration):
-	if !get_setting(CFG_VIBRATE):
+	if !Settings.get_setting(Settings.CFG_VIBRATE):
 		return
 	Input.vibrate_handheld(duration)
 
 func swap_confirm_key():
 	confirm_swapped = !confirm_swapped
-	store_setting(CFG_CONFIRM_SWAP, confirm_swapped)
+	Settings.store(Settings.CFG_CONFIRM_SWAP, confirm_swapped)
 
 func confirm_pressed():
 	if pending_special or pending_back:
@@ -1434,8 +1276,6 @@ func up_just_pressed():
 func up_held():
 	if Input.is_action_pressed("up"):
 		return true
-	#if touch_controls.visible and up_button.button_pressed:
-		#return up_button.button_pressed
 	return false
 
 func down_just_pressed():
@@ -1446,9 +1286,6 @@ func down_just_pressed():
 func down_held():
 	if Input.is_action_pressed("down"):
 		return true
-	#if touch_controls.visible and down_button.button_pressed:
-		#down_button.modulate.a = 0.5
-		#return down_button.button_pressed
 	return false
 
 func left_just_pressed():
@@ -1472,22 +1309,20 @@ func right_held():
 	return false
 
 func toggle_vibrate():
-	store_setting(CFG_VIBRATE, !get_setting(CFG_VIBRATE))
-	if get_setting(CFG_VIBRATE):
+	Settings.store(Settings.CFG_VIBRATE, !Settings.get_setting(Settings.CFG_VIBRATE))
+	if Settings.get_setting(Settings.CFG_VIBRATE):
 		vibrate(400)
 
 func touch_checkin():
 	if touch_position == null or previous_touch_position == null:
 		return
-	var touch_diff = touch_position - previous_touch_position
 	previous_touch_position = touch_position
-	# Get the difference between touch checkins
 
 func get_es_de_system(selected=Global.get_selected()):
 	var curr_sys = selected.system.to_lower()
-	if curr_sys== "gamecube":
+	if curr_sys == "gamecube":
 		return "gc"
-	elif curr_sys  == "pce":
+	elif curr_sys == "pce":
 		return "pcengine"
 	elif curr_sys == "ps":
 		return "psx"
@@ -1498,11 +1333,10 @@ func get_image_path(selected=Global.get_selected()):
 	var game_title = selected.filename.get_basename()
 	if selected.favorite_dir:
 		var game_path = FileAccess.get_file_as_string(Global.root_path + "/" + Global.PATH_GAMES + "/FAVORITES/" + selected.filename)
-		#var system_in_question = game_path.replace(Global.root_path + Global.PATH_GAMES, "").split("/")[0]
 		game_title = game_path.split("/")[-1].get_basename()
 		system_in_question = Global.get_selected().filename.split("] ")[0].replace("[", "")
 	if game_title == system_in_question:
-		if not Global.get_setting(Global.CFG_VISUAL_BUILTIN_SYSTEM_ART):
+		if not Settings.get_setting(Settings.CFG_VISUAL_BUILTIN_SYSTEM_ART):
 			return str(Global.root_path + Global.PATH_IMAGES + system_in_question + "_custom.png").replace("//", "/")
 		return str(Global.root_path + Global.PATH_IMAGES + system_in_question + ".png").replace("//", "/")
 	return str(str(Global.root_path) + str(Global.PATH_IMAGES) + str(system_in_question) + "/" + str(game_title) + ".png").replace("//", "/")
@@ -1535,12 +1369,12 @@ func _input(event):
 				touch_check_time = touch_start_time + 800
 				previous_touch_position = event.position
 				touch_start_position = event.position
-				if get_setting(CFG_TOUCH_VISIBLE):
+				if Settings.get_setting(Settings.CFG_TOUCH_VISIBLE):
 					TOUCH_POINTS.visible = true
-				TOUCH_POINTS.modulate = get_setting(CFG_BG_COLOR)
+				TOUCH_POINTS.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
 				TOUCH_START.global_position = touch_start_position
-				TOUCH_START.scale = Vector2(text_height / 4.0,text_height / 4.0)
-				TOUCH_CURRENT.scale = Vector2(text_height / 2.0,text_height / 2.0)
+				TOUCH_START.scale = Vector2(text_height / 4.0, text_height / 4.0)
+				TOUCH_CURRENT.scale = Vector2(text_height / 2.0, text_height / 2.0)
 				pending_special = false
 				pending_back = false
 			touch_position = event.position
@@ -1567,15 +1401,8 @@ func _input(event):
 				pending_back = false
 				touch_check_time = Time.get_ticks_msec() + 1000
 			if pending_special:
-				go_to_special()
+				Navigator.go_to_special()
 				touch_check_time = Time.get_ticks_msec() + 1000
 			touch_position = null
 	if event is InputEventScreenDrag:
-		#if Time.get_ticks_msec() > touch_check_time:
-			#if event.relative.y < -0:
-				#move_up()
-			#elif event.relative.y > 0:
-				#move_down()
-			#if abs(event.relative.y) < 8:
-				#touch_check_time = Time.get_ticks_msec() + 500
 		touch_position = event.position

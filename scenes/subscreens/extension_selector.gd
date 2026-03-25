@@ -7,11 +7,10 @@ var system_settings = {}
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	#title.set_anchors_preset(Control.PRESET_CENTER)
 	var choice_path = Global.root_path + Global.PATH_CONFIG + Global.subscreen + "/choices.json"
 	if Global.subscreen == "" or not FileAccess.file_exists(choice_path):
 		print(choice_path)
-		Global.go_to_main()
+		Navigator.go_to_main()
 		return
 	Global.post_draw_callback = Callable(self, "show_indicators")
 	Global.on_leave_component = Callable(self, "store_settings")
@@ -65,7 +64,7 @@ func _process(delta):
 	if Global.back_pressed():
 		store_settings()
 		print("back")
-		Global.go_to("special", "", true)
+		Navigator.go_to("special", "", true)
 		return
 	if Input.is_action_just_pressed("exit"):
-		Global.go_to_main()
+		Navigator.go_to_main()

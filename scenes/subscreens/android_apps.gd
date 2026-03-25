@@ -9,7 +9,7 @@ var app_list = {}
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	if OS.get_name() != "Android":
-		Global.go_to_main()
+		Navigator.go_to_main()
 	launcher = ANDROID_LAUNCHER.instantiate()
 	add_child.call_deferred(launcher)
 	Global.subscreen = "ANDROID"
@@ -24,13 +24,11 @@ func view_all():
 	Global.store_position()
 	Global.android_subscreen = "all"
 	populate_content()
-	#Global.title.text = "All Android apps"
 	Global.title.text = "Android"
 
 func clean_options():
 	var hidden = []
 	for opt in Global.option_list:
-		# For handling favorites
 		if Global.android_subscreen != null:
 			opt.absolute_path = app_list.get(opt.filename)
 			opt.system = "ANDROID"
@@ -54,7 +52,6 @@ func populate_content(msg_override=null):
 		app_list = AndroidInterface.get_app_list()
 		var options = app_list.keys()
 		options.sort()
-	#	options.push_front("Settings")
 		Global.clear_visible("ANDROID", options)
 		clean_options()
 	Global.set_up_slots()
@@ -74,7 +71,7 @@ func _process(delta):
 			elif selected == "emulators":
 				Global.store_position()
 				Global.subscreen = "EMULATORS"
-				Global.go_to("emulator_picker")
+				Navigator.go_to("emulator_picker")
 				return
 			elif selected == "files":
 				Global.store_position()
@@ -101,11 +98,7 @@ func _process(delta):
 			selected = Global.get_selected().filename
 			AndroidInterface.launch_package(app_list.get(selected))
 	if Global.back_pressed():
-		#if Global.android_subscreen != null or Global.title.text == "Not found":
-			#Global.android_subscreen = null
-			#populate_content()
-			#return
-		Global.go_to_main()
+		Navigator.go_to_main()
 	if Input.is_action_just_pressed("start"):
 		if Global.android_subscreen == null:
 			return

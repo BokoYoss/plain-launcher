@@ -10,13 +10,12 @@ var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	#title.set_anchors_preset(Control.PRESET_CENTER)
 	if OS.get_name() == "Android":
 		populate_content()
 		launcher = ANDROID_LAUNCHER.instantiate()
 		add_child.call_deferred(launcher)
 	else:
-		Global.go_to_main()
+		Navigator.go_to_main()
 	start_time = Time.get_ticks_msec()
 	Global.refresh_art("")
 	Global.can_scroll = false
@@ -41,4 +40,4 @@ func _process(delta):
 			launcher.launch_with_settings(Global.pending_launch)
 	elif Global.back_pressed():
 		Global.can_scroll = true
-		Global.back_to_previous_screen()
+		Navigator.back_to_previous_screen()

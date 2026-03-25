@@ -5,7 +5,6 @@ var launcher
 
 var pending_cover_download = false
 var pending_cover_file = false
-#var pending_image_sprite = null
 var pending_image = null
 var download_path = null
 var download_dir = null
@@ -27,12 +26,9 @@ var image_pending = false
 func _ready():
 	if Global.special_item == null:
 		return
-	#pending_image_sprite = Sprite2D.new()
-	#add_child(pending_image_sprite)
-	#pending_image_sprite.position = Vector2(Global.window_width * 0.75, Global.window_height / 2.0)
 	Global.populate_filter = Callable(self, "filter_item")
 	$Path.bbcode_text = "[b]Path:[/b] " + Global.special_item.absolute_path + "\n[b]Image:[/b] " + Global.get_image_path(Global.special_item)
-	$Path.modulate = Global.get_setting(Global.CFG_FG_COLOR)
+	$Path.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
 	$Path.position.y = Global.window_height - 64
 	$Path.position.x = Global.left_bound
 	$Path.size.x = Global.window_width
@@ -70,7 +66,6 @@ func populate_content():
 	if not system_settings.is_empty():
 		settings.append_array(system_settings.keys())
 		settings.append("RESTORE DEFAULTS")
-	#settings.append("Look for cover art automatically")
 	if Global.special_item.system == "ANDROID":
 		settings.append("Open app settings")
 	settings.append("Look for cover art on Google")
@@ -95,7 +90,7 @@ func write_settings_to_disk():
 	if FileAccess.file_exists(settings_path):
 		var settings_dir = DirAccess.open(settings_path.get_base_dir())
 		print("DELETE SETTINGS at " + settings_path)
-		settings_dir.remove_absolute(settings_path) # we need to delete in order to safely overwrite
+		settings_dir.remove_absolute(settings_path)
 	if system_settings == null or system_settings.is_empty():
 		return
 	print("STORE SETTINGS " + str(system_settings) + " to " + settings_path)
@@ -152,7 +147,7 @@ func _process(delta):
 		elif "favorites" in selected:
 			Global.toggle_favorite()
 		elif selected == "additional game paths":
-			Global.go_to("path_adder")
+			Navigator.go_to("path_adder")
 			return
 		elif "app settings" in selected:
 			AndroidInterface.app_settings(Global.special_item.absolute_path)
@@ -170,13 +165,12 @@ func _process(delta):
 			if download_dir == null:
 				download_dir = DirAccess.open(download_dir_path)
 			if download_dir != null:
-				# get the list of files currently downloaded so we can find new ones
 				current_downloaded_list = download_dir.get_files()
 
 			var source = selected.replace("look for cover art on ", "")
 			AndroidInterface.look_for_art(Global.special_item.clean, Global.special_item.system, source)
 		elif selected == "extensions":
-			Global.go_to("extension_selector")
+			Navigator.go_to("extension_selector")
 			return
 		elif "restore defaults" in selected:
 			system_settings = null
@@ -198,7 +192,6 @@ func _process(delta):
 			pending_setting = selected
 			Global.clear_visible(Global.special_item.clean + " " + pending_setting, system_settings_options.get(selected, []))
 			for i in range(0, system_settings_options.get(selected, []).size()):
-				# highlight current options
 				var suboption = Global.option_list[i]
 				if suboption.filename == current_value:
 					Global.highlight_selection(i)
@@ -226,12 +219,12 @@ func _process(delta):
 		if is_system or (!is_system and !game_settings_match_default()):
 			write_settings_to_disk()
 		Global.special_item = null
-		if Global.previous_screen == "android_apps":
-			Global.go_to("android_apps")
+		if Navigator.previous_screen == "android_apps":
+			Navigator.go_to("android_apps")
 		elif is_system:
-			Global.go_to_main()
+			Navigator.go_to_main()
 		else:
-			Global.go_to("game_browser")
+			Navigator.go_to("game_browser")
 		return
 
 func show_image(path=Global.get_image_path(Global.special_item)):
@@ -242,12 +235,6 @@ func show_image(path=Global.get_image_path(Global.special_item)):
 	image_texture.set_image(pending_image)
 	Global.img_texture_override = image_texture
 	Global.refresh_art()
-	#pending_image_sprite.texture = image_texture
-	#pending_image_sprite.visible = true
-	#var scale_ratio_x = (Global.window_width * 0.5) / pending_image_sprite.texture.get_size().x
-	#var scale_ratio_y = (Global.window_height * 0.8) / pending_image_sprite.texture.get_size().y
-	#var scale_ratio = min(scale_ratio_x, scale_ratio_y)
-	#pending_image_sprite.scale = Vector2(scale_ratio, scale_ratio)
 
 func get_normalized_art():
 	var zip_reader = ZIPReader.new()

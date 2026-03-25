@@ -41,10 +41,10 @@ func _ready():
 
 func set_color(new_color):
 	if Global.color_picker == "background":
-		Global.store_setting(Global.CFG_BG_COLOR, new_color)
+		Settings.store(Settings.CFG_BG_COLOR, new_color)
 	else:
-		Global.store_setting(Global.CFG_FG_COLOR, new_color)
-	Global.back_to_previous_screen()
+		Settings.store(Settings.CFG_FG_COLOR, new_color)
+	Navigator.back_to_previous_screen()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _physics_process(delta):
@@ -62,15 +62,15 @@ func _physics_process(delta):
 	CURSOR.position.y = clamp(CURSOR.position.y, -sprite_height / 2.0 + 2, sprite_height / 2.0 - 2)
 	if Input.is_action_pressed("start"):
 		if Global.color_picker == "background":
-			set_color(Global.DEFAULT_SETTINGS.get(Global.CFG_BG_COLOR))
+			set_color(Settings.DEFAULT_SETTINGS.get(Settings.CFG_BG_COLOR))
 			return
 		else:
-			set_color(Global.DEFAULT_SETTINGS.get(Global.CFG_FG_COLOR))
+			set_color(Settings.DEFAULT_SETTINGS.get(Settings.CFG_FG_COLOR))
 			return
 	if Time.get_ticks_msec() - update_example_time > 100:
 		if scolding:
-			Global.BACKDROP.modulate = Global.get_setting(Global.CFG_BG_COLOR)
-			Global.title.modulate = Global.get_setting(Global.CFG_FG_COLOR)
+			Global.BACKDROP.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
+			Global.title.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
 		else:
 			var offset_position = Vector2i(CURSOR.position.x + sprite_width / 2.0, CURSOR.position.y + sprite_height / 2.0)
 			var new_color = $Sprite2D.texture.get_image().get_pixelv(offset_position)
@@ -88,14 +88,14 @@ func _physics_process(delta):
 				return
 			var offset_position = Vector2i(CURSOR.position.x + sprite_width / 2.0, CURSOR.position.y + sprite_height / 2.0)
 			var new_color = $Sprite2D.texture.get_image().get_pixelv(offset_position)
-			if Global.color_picker == "background" and Global.get_setting(Global.CFG_BG_COLOR).is_equal_approx(new_color):
+			if Global.color_picker == "background" and Settings.get_setting(Settings.CFG_BG_COLOR).is_equal_approx(new_color):
 				Global.clear_visible("Sorry, too similar", ["OK"])
 				scolding = true
 				return
-			if Global.color_picker == "foreground" and Global.get_setting(Global.CFG_FG_COLOR).is_equal_approx(new_color):
+			if Global.color_picker == "foreground" and Settings.get_setting(Settings.CFG_FG_COLOR).is_equal_approx(new_color):
 				Global.clear_visible("Sorry, too similar", ["OK"])
 				scolding = true
 				return
 			set_color(new_color)
 		if Global.back_pressed():
-			Global.go_to("settings")
+			Navigator.go_to("settings")

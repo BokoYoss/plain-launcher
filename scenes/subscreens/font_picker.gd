@@ -21,9 +21,6 @@ func _ready():
 			font_subdir = font_subdir.replace(".import", "")
 			var subdir_for_font = DirAccess.open("res://launcher_configs/COMMON/fonts/" + font_subdir)
 			if not subdir_for_font:
-				#if font_subdir.get_extension() == "ttf":
-					#var font_name = font_subdir.get_basename().replace(".ttf", "")
-					#font_list[font_name] = "res://launcher_configs/COMMON/fonts/" + font_subdir
 				font_subdir = font_dir.get_next()
 				continue
 			font_list[font_subdir] = {
@@ -34,13 +31,6 @@ func _ready():
 				"ExtraBold": "res://launcher_configs/COMMON/fonts/" + font_subdir + "/" + font_subdir + "-ExtraBold.ttf"
 			}
 			font_subdir = font_dir.get_next()
-			#var files_in_font_dir = subdir_for_font.get_files()
-			#for font in files_in_font_dir:
-				#if font.get_extension() != "ttf":
-					#continue
-				#var font_name = font.get_basename().replace(".ttf", "")
-				#font_list[font_name] = subdir_for_font.get_current_dir() + "/" + font
-			#font_subdir = font_dir.get_next()
 		font_dir.list_dir_end()
 	populate_content()
 
@@ -75,22 +65,22 @@ func _process(delta):
 		if current_font_subdir == null:
 			if Global.get_selected().filename == "Default":
 				Global.font = ResourceLoader.load(font_list["Default"].get("Medium"))
-				Global.store_setting(Global.CFG_FONT, font_list["Default"].get("Medium"))
+				Settings.store(Settings.CFG_FONT, font_list["Default"].get("Medium"))
 				Global.refresh_fonts()
-				Global.back_to_previous_screen()
+				Navigator.back_to_previous_screen()
 				return
 			current_font_subdir = Global.get_selected().filename
 			populate_content()
 			return
 		var selected = Global.get_selected().filename
 		if font_list.get(current_font_subdir, {}).get(selected) != null:
-			Global.store_setting(Global.CFG_FONT, font_list.get(current_font_subdir).get(selected))
+			Settings.store(Settings.CFG_FONT, font_list.get(current_font_subdir).get(selected))
 			Global.font = ResourceLoader.load(font_list.get(current_font_subdir).get(selected))
 		if Global.font == null:
-			Global.store_setting(Global.CFG_FONT, font_list["Default"].get("Medium"))
+			Settings.store(Settings.CFG_FONT, font_list["Default"].get("Medium"))
 			Global.font = ResourceLoader.load(font_list["Default"].get("Medium"))
 		Global.refresh_fonts()
-		Global.back_to_previous_screen()
+		Navigator.back_to_previous_screen()
 	elif Global.back_pressed():
 		Global.store_position()
 		if current_font_subdir != null:
@@ -98,7 +88,7 @@ func _process(delta):
 			populate_content()
 			return
 		if Global.font == null:
-			Global.store_setting(Global.CFG_FONT, font_list["Default"].get("Medium"))
+			Settings.store(Settings.CFG_FONT, font_list["Default"].get("Medium"))
 			Global.font = ResourceLoader.load(font_list["Default"].get("Medium"))
 		Global.refresh_fonts()
-		Global.back_to_previous_screen()
+		Navigator.back_to_previous_screen()
