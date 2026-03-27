@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b3gx1ntqh5xs3"]
+
+[ext_resource type="Script" uid="uid://bscraper0gd001" path="res://scenes/subscreens/scraper.gd" id="1_scrpr1"]
+
+[node name="Scraper" type="Node2D"]
+script = ExtResource("1_scrpr1")

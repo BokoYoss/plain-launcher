@@ -1,10 +1,10 @@
-extends component
+extends Screen
 
 var current_dir: DirAccess = null
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-
+	Global.no_alias = false
 	Global.fade.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
 	Global.fade.modulate.a = 1.0
 	Global.subscreen = ""
@@ -19,17 +19,21 @@ func populate_content(msg_override=null):
 
 	Global.refresh_alias()
 	Global.populate_favorites()
-	var special = ["RECENT", "ANDROID", "FAVORITES"] # special directories placed at top
+	var special = ["RECENT", "FAVORITES", "ANDROID"] # special directories placed at top
 	Global.list_directory_contents(system_dir, true, special, false)
-	Global.show_message("SELECT for GLOBAL options", true)
+	#Global.show_message("SELECT for GLOBAL options", true)
 
 	if msg_override != null:
 		Global.show_message(msg_override, true)
 	Global.refresh_art()
 
-func _exit_tree() -> void:
-	Global.title_can_be_blank = false
+func _on_resume():
+	Global.no_alias = false
+	Global.title_can_be_blank = true
 	Global.set_up_slots()
+	Global.show_options(Global.scroll_offset)
+	Global.highlight_selection()
+	Global.refresh_art()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
@@ -42,11 +46,11 @@ func _process(delta):
 		if selected_system.to_lower() == "android":
 			Global.subscreen = "ANDROID"
 			Global.clear_visible("Loading..")
-			Navigator.go_to("android_apps")
+			Navigator.push("android_apps")
 			return
 		Global.special_item = Global.get_selected()
-		Navigator.go_to("game_browser")
+		Navigator.push("game_browser")
 		Global.subscreen = selected_system
 		return
 	if Global.back_pressed():
-		Navigator.go_to("settings")
+		Navigator.push("settings")

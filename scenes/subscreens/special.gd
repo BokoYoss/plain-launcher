@@ -1,4 +1,4 @@
-extends component
+extends Screen
 
 var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 var launcher
@@ -21,6 +21,8 @@ const download_dir_path = "/storage/emulated/0/Download"
 var current_downloaded_list = []
 
 var image_pending = false
+var choosing_file = false
+var showing_browser_sources = false
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -37,6 +39,10 @@ func _ready():
 	$Path.add_theme_font_override("font", Global.font)
 	AndroidInterface.connect("configured_storage", get_storage_selection)
 	AndroidInterface.connect("configure_storage_failure", on_storage_config_failure)
+	AndroidInterface.connect("got_image", _on_image_chosen)
+	populate_content()
+
+func _on_resume():
 	populate_content()
 
 func get_storage_selection(path):
@@ -68,11 +74,12 @@ func populate_content():
 		settings.append("RESTORE DEFAULTS")
 	if Global.special_item.system == "ANDROID":
 		settings.append("Open app settings")
-	settings.append("Look for cover art on Google")
-	settings.append("Look for cover art on DuckDuckGo")
-	settings.append("Look for cover art on TGDB")
-	settings.append("Look for cover art on Launchbox")
-	settings.append("Look for cover art on SteamGridDB")
+	if Global.special_item.is_dir:
+		settings.append("Scrape all artwork")
+		settings.append("Look for system art...")
+	else:
+		settings.append("Scrape artwork")
+		settings.append("Look for cover art...")
 	Global.clear_visible("Options - " + Global.special_item.clean, settings)
 	show_image()
 	Global.refresh_art()
@@ -110,8 +117,9 @@ func save_chosen_image():
 			print("Error during copy: " + str(result))
 			Global.clear_visible("Failure", ["Failed to access downloaded art."])
 		else:
-			print("Copy success, deleting file at " + download_path)
-			download_dir.remove_absolute(download_path)
+			if download_dir != null:
+				print("Copy success, deleting file at " + download_path)
+				download_dir.remove_absolute(download_path)
 
 func game_settings_match_default():
 	var systemwide = Global.get_systemwide_settings(Global.special_item.system)
@@ -145,9 +153,9 @@ func _process(delta):
 		if "hide" in selected:
 			Global.toggle_hidden()
 		elif "favorites" in selected:
-			Global.toggle_favorite()
+			Global.toggle_favorite(Global.special_item)
 		elif selected == "additional game paths":
-			Navigator.go_to("path_adder")
+			Navigator.push("path_adder")
 			return
 		elif "app settings" in selected:
 			AndroidInterface.app_settings(Global.special_item.absolute_path)
@@ -160,17 +168,24 @@ func _process(delta):
 
 			get_normalized_art()
 			return
-		elif "cover art" in selected:
-			pending_cover_download = true
-			if download_dir == null:
-				download_dir = DirAccess.open(download_dir_path)
-			if download_dir != null:
-				current_downloaded_list = download_dir.get_files()
-
-			var source = selected.replace("look for cover art on ", "")
-			AndroidInterface.look_for_art(Global.special_item.clean, Global.special_item.system, source)
+		elif selected == "scrape all artwork" or selected == "scrape artwork":
+			Navigator.push("scraper")
+			return
+		elif selected == "look for cover art..." or selected == "look for system art...":
+			showing_browser_sources = true
+			Global.clear_visible("Find cover art for " + Global.special_item.clean,
+				["Google", "DuckDuckGo", "TGDB", "Launchbox", "SteamGridDB", "Choose from files"])
+			return
+		elif showing_browser_sources:
+			showing_browser_sources = false
+			if selected == "choose from files":
+				choosing_file = true
+				AndroidInterface.choose_file()
+				return
+			AndroidInterface.look_for_art_web(Global.special_item.clean, Global.special_item.system, selected)
+			return
 		elif selected == "extensions":
-			Navigator.go_to("extension_selector")
+			Navigator.push("extension_selector")
 			return
 		elif "restore defaults" in selected:
 			system_settings = null
@@ -204,6 +219,10 @@ func _process(delta):
 		return
 	if Global.back_pressed():
 		Global.img_texture_override = null
+		if showing_browser_sources:
+			showing_browser_sources = false
+			populate_content()
+			return
 		if pending_setting != null:
 			pending_setting = null
 			populate_content()
@@ -219,13 +238,32 @@ func _process(delta):
 		if is_system or (!is_system and !game_settings_match_default()):
 			write_settings_to_disk()
 		Global.special_item = null
-		if Navigator.previous_screen == "android_apps":
-			Navigator.go_to("android_apps")
-		elif is_system:
-			Navigator.go_to_main()
-		else:
-			Navigator.go_to("game_browser")
+		Navigator.pop()
 		return
+
+func _on_image_chosen(path: String):
+	choosing_file = false
+	if path == "":
+		populate_content()
+		return
+	var file = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		populate_content()
+		return
+	var bytes = file.get_buffer(file.get_length())
+	file.close()
+	var img = Image.new()
+	if img.load_png_from_buffer(bytes) != OK and img.load_jpg_from_buffer(bytes) != OK and img.load_webp_from_buffer(bytes) != OK:
+		Global.clear_visible("Could not decode image.", ["OK"])
+		return
+	pending_image = img
+	download_path = path
+	download_dir = null
+	Global.clear_visible("Use this image?", ["Yes", "No"])
+	image_pending = true
+	await get_tree().create_timer(0.3).timeout
+	Global.img_texture_override = ImageTexture.create_from_image(img)
+	Global.refresh_art()
 
 func show_image(path=Global.get_image_path(Global.special_item)):
 	pending_image = Image.new()

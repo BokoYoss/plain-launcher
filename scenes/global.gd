@@ -15,7 +15,7 @@ var visible_slots = []
 var option_selection = 0
 var scroll_offset = 0
 
-var current_component = null
+var current_screen = null
 var current_directory = ""
 
 var pending_intent = ""
@@ -56,6 +56,8 @@ var subscreen = null
 var show_hidden = false
 var title_can_be_blank = false
 
+var disable_scroll := false
+
 var held_time = -1
 var frame = 0
 
@@ -90,6 +92,7 @@ var touch_start_time = -1
 var touch_check_time = -1
 var pending_special = false
 var pending_back = false
+var waiting_for_confirm_release: bool = false
 var control_tilt: Vector2 = Vector2.ZERO
 var tilt_ratio = 0
 @onready var TOUCH_POINTS = $TouchPoints
@@ -99,10 +102,10 @@ var tilt_ratio = 0
 
 var confirm_hold_time = null
 
-# Component callbacks
+# screen callbacks
 var post_draw_callback = null
 var post_scroll_callback = null
-var on_leave_component = null
+var on_leave_screen = null
 var populate_filter = null
 
 var font = null
@@ -317,16 +320,14 @@ func set_up_slots():
 
 	var slot_start = title.position.y + (title.size.y * title.scale.y) - scaled_text_height / 2.0
 
-	print("TITLE TEXT: " + title.text + "TITLE SIZE: " + str(title.size.y * title.scale.y) + " SLOT START: " + str(slot_start))
+	#print("TITLE TEXT: " + title.text + "TITLE SIZE: " + str(title.size.y * title.scale.y) + " SLOT START: " + str(slot_start))
 
 	message = $SlotHolder/Body.duplicate()
 	add_child.call_deferred(message)
 	message.position.y = Global.window_height - text_height
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	message.size.x = Global.window_width * Settings.get_setting(Settings.CFG_TEXT_LENGTH)
-	message.position.x = left_bound
-	if Settings.get_setting(Settings.CFG_VISUAL_BODY_ORIENTATION) == HORIZONTAL_ALIGNMENT_RIGHT:
-		message.position.x = -2 * left_bound
+	message.position.x = Global.window_width - 2.0
 	message.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
 	message.set("theme_override_font_sizes/font_size", scaled_text_height / 2.0)
 	$Pixel.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
@@ -369,8 +370,13 @@ func set_up_slots():
 func refresh_alias(system="COMMON"):
 	if root_path != null and FileAccess.file_exists(root_path + "/" + Global.PATH_CONFIG + "/" + system + "/alias.json"):
 		ALIAS_MAP = JSON.parse_string(FileAccess.get_file_as_string(root_path + "/" + Global.PATH_CONFIG + "/" + system + "/alias.json"))
-		if not ALIAS_MAP:
-			ALIAS_MAP = {}
+		set_active_alias_map(ALIAS_MAP)
+
+func set_active_alias_map(aliases):
+	if not aliases:
+		ALIAS_MAP = {}
+	else:
+		ALIAS_MAP = aliases
 
 func refresh_fonts():
 	if font == null:
@@ -480,9 +486,12 @@ func show_message(msg, priority=false):
 		return
 	if message.text.to_lower() == msg.to_lower():
 		return
+	print("showing message: " + msg)
 	message.text = ALIAS_MAP.get(msg, msg)
 	message.uppercase = Settings.get_setting(Settings.CFG_CAPS_LOCK)
-	message.position.x = Global.window_width - text_height - (message.size.x * Settings.get_setting(Settings.CFG_SCALER))
+	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	message.position.x = Global.window_width - 2.0
+	message.position.y = Global.window_height - 2.0
 	message.modulate.a = 1.0
 
 func update_title(new_title):
@@ -535,7 +544,7 @@ func set_for_all_text(key, value, title_included=true):
 		text.set(key, value)
 
 func special_allowed():
-	return Navigator.current_screen == "system_browser" or Navigator.current_screen == "game_browser" or Navigator.current_screen == "android_apps"
+	return Navigator.current_screen == "system_browser" or Navigator.current_screen == "game_browser" or Navigator.current_screen == "android_apps"  or Navigator.current_screen == "scraper"
 
 func clear_visible(title_text="", custom_options=[]):
 	option_list.clear()
@@ -625,7 +634,9 @@ func highlight_selection(next_selection=option_selection):
 	for i in range(0, visible_slots.size()):
 		var slot = visible_slots[i]
 		slot.modulate.a = 0.3
-		slot.position.x = slot_offset
+		var list_idx = scroll_offset + i
+		var slot_is_fav = list_idx < option_list.size() and favorites_list.has(option_list[list_idx].absolute_path)
+		slot.position.x = slot_offset + (left_bound / 2.0 if slot_is_fav else 0.0)
 		slot.size = slot_size
 		if scroll_offset + i < option_list.size() and HIDDEN_LIST.get(option_list[scroll_offset + i].absolute_path, false):
 			slot.modulate.a = 0.1
@@ -675,9 +686,9 @@ func show_options(offset=0):
 			fav_indicators[i].visible = false
 			continue
 		set_slot(i, option_list[i+offset].clean)
-		fav_indicators[i].visible = false
-		if favorites_list.has(option_list[i+offset].absolute_path):
-			fav_indicators[i].visible = true
+		var is_fav = favorites_list.has(option_list[i+offset].absolute_path)
+		fav_indicators[i].visible = is_fav
+		visible_slots[i].position.x = slot_offset + (left_bound / 2.0 if is_fav else 0.0)
 	if post_draw_callback != null:
 		post_draw_callback.call()
 
@@ -698,10 +709,7 @@ func populate_favorites():
 func favorite_name(system, selected_name):
 	return "[" + system + "] " + selected_name + ".favorite"
 
-func add_favorite():
-	var item = Global.get_selected()
-	if Navigator.current_screen == "special":
-		item = Global.special_item
+func add_favorite(item):
 	Global.populate_favorites()
 	if item.favorite_dir or Global.favorites_list.has(item.absolute_path) or Global.subscreen == "favorites":
 		return
@@ -711,7 +719,7 @@ func add_favorite():
 		DirAccess.make_dir_recursive_absolute(fav_dir_path)
 		fav_dir = DirAccess.open(fav_dir_path)
 	var selected = item.clean
-	var fav_file = FileAccess.open(fav_dir.get_current_dir() + "/" + favorite_name(Global.subscreen, selected), FileAccess.WRITE)
+	var fav_file = FileAccess.open(fav_dir.get_current_dir() + "/" + favorite_name(item.system, selected), FileAccess.WRITE)
 	print("ADDING FAVORITE " + fav_file.get_path_absolute().get_basename())
 	fav_file.store_string(item.absolute_path)
 	fav_file.close()
@@ -737,20 +745,15 @@ func remove_favorite():
 		fav_dir.remove(fav_name)
 	Global.store_position()
 	Global.populate_favorites()
-	if removed_from_favorite_list:
-		Navigator.go_to_main()
 
-func toggle_favorite():
-	var item = Global.get_selected()
-	if Navigator.current_screen == "special":
-		item = Global.special_item
+func toggle_favorite(item):
 	if item.clean == "":
 		return
 	if Global.subscreen == "FAVORITES" or Global.favorites_list.has(item.absolute_path):
 		remove_favorite()
 		Global.show_message("Removed from FAVORITES", true)
 	else:
-		add_favorite()
+		add_favorite(item)
 	highlight_selection(0)
 	show_options(scroll_offset)
 
@@ -1066,7 +1069,7 @@ func on_scroll():
 	refresh_art()
 
 func cursor_locked():
-	return Navigator.current_screen == "color_picker" or Navigator.current_screen == "art_placer"
+	return Navigator.current_screen == "color_picker" or Navigator.current_screen == "art_placer" or disable_scroll
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
@@ -1254,6 +1257,11 @@ func swap_confirm_key():
 func confirm_pressed():
 	if pending_special or pending_back:
 		return false
+	if waiting_for_confirm_release:
+		if confirm_held():
+			return false
+		waiting_for_confirm_release = false
+		return false
 	if confirm_swapped:
 		return Input.is_action_just_released("back")
 	return Input.is_action_just_released("select")
@@ -1356,6 +1364,10 @@ func press_back():
 	else:
 		Input.action_press("back")
 		Input.action_release("back")
+
+func disallow_scroll():
+	disable_scroll = true
+
 
 func _input(event):
 	if !touch_enabled:

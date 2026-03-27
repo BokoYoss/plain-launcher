@@ -32,6 +32,14 @@ const CFG_TOP_MARGIN = "TEXT_TOP_MARGIN"
 const CFG_TITLE_SIZE = "TITLE_SIZE"
 const CFG_SYSTEM_TITLE = "TITLE_SYSTEM"
 const CFG_TEXT_LENGTH = "TEXT_LENGTH"
+const CFG_SHOW_FAVS_FIRST = "SHOW_FAVS_FIRST"
+const CFG_SS_USER = "SS_USER"
+const CFG_SS_PASS = "SS_PASS"
+const CFG_SS_DEVID = "SS_DEVID"
+const CFG_SS_DEVPASS = "SS_DEVPASS"
+const CFG_SS_SOFT_NAME = "SS_SOFT_NAME"
+const CFG_SGDB_KEY = "SGDB_KEY"
+const CFG_SCRAPER_BACKEND = "SCRAPER_BACKEND"
 
 var DEFAULT_SETTINGS = {
 	CFG_CONFIRM_SWAP: false,
@@ -60,6 +68,14 @@ var DEFAULT_SETTINGS = {
 	CFG_TEXT_LENGTH: 0.5,
 	CFG_TITLE_SIZE: 0.25,
 	CFG_SYSTEM_TITLE: "SYSTEMS",
+	CFG_SHOW_FAVS_FIRST: false,
+	CFG_SS_USER: "",
+	CFG_SS_PASS: "",
+	CFG_SS_DEVID: "",
+	CFG_SS_DEVPASS: "",
+	CFG_SS_SOFT_NAME: "",
+	CFG_SGDB_KEY: "",
+	CFG_SCRAPER_BACKEND: "screenscraper",
 }
 
 var _data = null
@@ -102,6 +118,20 @@ func _load():
 		print("LOAD SETTINGS: migration complete")
 	else:
 		_data = {}
+	_load_secrets()
+
+func _load_secrets():
+	const SECRETS_FILE = "res://secrets.json"
+	if not FileAccess.file_exists(SECRETS_FILE):
+		return
+	var f = FileAccess.open(SECRETS_FILE, FileAccess.READ)
+	var parsed = JSON.parse_string(f.get_as_text())
+	f.close()
+	if parsed == null:
+		return
+	for key in [CFG_SS_DEVID, CFG_SS_DEVPASS, CFG_SS_SOFT_NAME]:
+		if key in parsed and _data.get(key, "") == "":
+			_data[key] = parsed[key]
 
 func _save():
 	var f = FileAccess.open(SETTINGS_FILE, FileAccess.WRITE)

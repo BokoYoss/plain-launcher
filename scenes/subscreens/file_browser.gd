@@ -1,4 +1,4 @@
-extends component
+extends Screen
 
 var current_dir: DirAccess = null
 
@@ -64,9 +64,9 @@ func populate_files(root, dir_only=false):
 
 	current_dir = new_dir
 
-	Global.show_message(current_dir.get_current_dir().replace("//", "/"), true)
+	#Global.show_message(current_dir.get_current_dir().replace("//", "/"), true)
 
-	Global.clear_visible("START to use current directory")
+	#Global.clear_visible("START to use current directory")
 
 	Global.list_directory_contents(current_dir)
 
@@ -183,9 +183,9 @@ func _process(delta):
 						storage_select("Failure during storage init.")
 						return
 					Global.clear_visible("Set up Plain Launcher directory.", ["OK"])
-					Global.show_message(str(current_dir.get_current_dir()).replace("//", "/"), true)
+					#Global.show_message(str(current_dir.get_current_dir()).replace("//", "/"), true)
 			elif Global.get_selected().clean.to_lower() == "ok":
-				Navigator.go_to("system_browser")
+				Navigator.go_to_main()
 			elif "selector" in Global.get_selected().clean.to_lower():
 				AndroidInterface.choose_storage_directory()
 			elif "on-device" in Global.get_selected().clean.to_lower():
@@ -210,4 +210,4 @@ func _process(delta):
 			current_dir = DirAccess.open(current_dir.get_current_dir() + "/PlainLauncher")
 
 			Global.clear_visible("Create Plain Launcher directory?", ["Yes", "No"])
-			Global.show_message(str(current_dir.get_current_dir() + "/PlainLauncher/").replace("//", "/"), true)
+			#Global.show_message(str(current_dir.get_current_dir() + "/PlainLauncher/").replace("//", "/"), true)

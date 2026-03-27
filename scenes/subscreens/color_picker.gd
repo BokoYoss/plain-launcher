@@ -44,7 +44,7 @@ func set_color(new_color):
 		Settings.store(Settings.CFG_BG_COLOR, new_color)
 	else:
 		Settings.store(Settings.CFG_FG_COLOR, new_color)
-	Navigator.back_to_previous_screen()
+	Navigator.pop()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _physics_process(delta):
@@ -98,4 +98,4 @@ func _physics_process(delta):
 				return
 			set_color(new_color)
 		if Global.back_pressed():
-			Navigator.go_to("settings")
+			Navigator.pop()

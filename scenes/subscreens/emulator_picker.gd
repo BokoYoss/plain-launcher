@@ -1,4 +1,4 @@
-extends component
+extends Screen
 
 var launcher = null
 
@@ -27,6 +27,6 @@ func _process(delta):
 		var selected = Global.get_selected().filename.to_lower().replace(" ", "")
 		print("PRESSED " + selected)
 		var result = launcher.launch_with_settings({"EMULATOR": selected})
-		Global.show_message(result, true)
+		#Global.show_message(result, true)
 	if Global.back_pressed():
-		Navigator.back_to_previous_screen()
+		Navigator.pop()

@@ -1,4 +1,4 @@
-extends component
+extends Screen
 
 var current_dir: DirAccess = null
 
@@ -66,4 +66,4 @@ func _process(delta):
 			Global.clear_visible(pending_path, ["Remove", "Back"])
 			return
 	elif Global.back_pressed():
-		Navigator.back_to_previous_screen()
+		Navigator.pop()

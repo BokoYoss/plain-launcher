@@ -1,4 +1,4 @@
-extends component
+extends Screen
 
 var additional_paths = []
 var pending_path = ""
@@ -40,4 +40,4 @@ func _process(delta):
 			launcher.launch_with_settings(Global.pending_launch)
 	elif Global.back_pressed():
 		Global.can_scroll = true
-		Navigator.back_to_previous_screen()
+		Navigator.pop()

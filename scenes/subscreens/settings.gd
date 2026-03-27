@@ -1,16 +1,12 @@
-extends component
+extends Screen
 
 var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 var launcher
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	var settings = ["General", "Visuals", "Controls"]
-	settings.append("Credits")
-	settings.append("Quit")
-
 	Global.fade.modulate.a = 1.0
-	Global.clear_visible("SETTINGS", settings)
+	_show_settings_main()
 
 	Global.post_scroll_callback = Callable(self, "on_scroll")
 
@@ -27,6 +23,23 @@ func _ready():
 	if Global.setting_subscreen == "system":
 		show_system_settings()
 		Global.setting_subscreen = null
+	Global.refresh_art()
+
+func _show_settings_main():
+	Global.clear_visible("SETTINGS", ["General", "Visuals", "Controls", "Scraper", "Credits", "Quit"])
+	Global.post_scroll_callback = Callable(self, "on_scroll")
+
+func _on_resume():
+	var title = Global.title.text.to_lower()
+	if "visual" in title:
+		show_visual_settings()
+	elif "control" in title:
+		show_control_settings()
+	elif "general" in title:
+		show_system_settings()
+	else:
+		_show_settings_main()
+	Global.img_texture_override = null
 	Global.refresh_art()
 
 func get_storage_selection(path):
@@ -51,7 +64,9 @@ func show_visual_settings():
 	var caps_toggle = "Caps Lock on"
 	if Settings.get_setting(Settings.CFG_CAPS_LOCK):
 		caps_toggle = "Caps Lock off"
+	var favs_first_toggle = "Favorites first: " + ("on" if Settings.get_setting(Settings.CFG_SHOW_FAVS_FIRST) else "off")
 	visual_settings.push_front(hide_toggle)
+	visual_settings.append(favs_first_toggle)
 	visual_settings.append(caps_toggle)
 	visual_settings.append(touch_visible_toggle)
 	visual_settings.append("Restore all visual settings")
@@ -103,8 +118,7 @@ func _process(delta):
 			return
 		elif "cover position" == selected:
 			Global.clear_visible("Set cover position.")
-			Global.setting_subscreen = "visuals"
-			Navigator.go_to("art_placer")
+			Navigator.push("art_placer")
 			return
 		elif "cover border" == selected:
 			Global.cycle_border_thickness()
@@ -183,7 +197,6 @@ func _process(delta):
 			show_visual_settings()
 			return
 		elif "change size" in selected:
-			Global.setting_subscreen = "visuals"
 			Global.cycle_sizes()
 			return
 		elif "hidden" in selected:
@@ -192,6 +205,10 @@ func _process(delta):
 			return
 		elif "minui" in selected:
 			populate_minui_paths()
+			return
+		elif "favorites first" in selected:
+			Settings.store(Settings.CFG_SHOW_FAVS_FIRST, !Settings.get_setting(Settings.CFG_SHOW_FAVS_FIRST))
+			show_visual_settings()
 			return
 		elif "artwork" in selected:
 			Global.toggle_art()
@@ -207,21 +224,21 @@ func _process(delta):
 		elif selected == "ok":
 			Navigator.go_to_main()
 			return
+		elif "scraper" in selected:
+			Navigator.push("scraper_credentials")
+			return
 		elif "storage" in selected:
-			Navigator.go_to("file_browser")
+			Navigator.push("file_browser")
 		elif "background" in selected:
 			Global.clear_visible("Select BACKGROUND color.", ["START: Default"])
 			Global.color_picker = "background"
-			Global.setting_subscreen = "visuals"
-			Navigator.go_to("color_picker")
+			Navigator.push("color_picker")
 		elif "foreground" in selected:
 			Global.clear_visible("Select TEXT color.", ["START: Default"])
 			Global.color_picker = "foreground"
-			Global.setting_subscreen = "visuals"
-			Navigator.go_to("color_picker")
+			Navigator.push("color_picker")
 		elif "font" in selected:
-			Global.setting_subscreen = "visuals"
-			Navigator.go_to("font_picker")
+			Navigator.push("font_picker")
 			return
 		elif "restore all game settings" in selected:
 			Global.clear_all_settings()
@@ -244,14 +261,14 @@ func _process(delta):
 			var root = DirAccess.open(Global.root_path)
 			if root:
 				root.rename_absolute(Global.root_path, Global.root_path + "-" + str(Time.get_unix_time_from_system()))
-				Navigator.go_to("file_browser")
+				Navigator.push("file_browser")
 				return
 		elif "credits" in selected:
-			Navigator.go_to("credits")
+			Navigator.push("credits")
 		return
 	if Global.back_pressed():
 		if Global.title.text.to_lower() != "settings":
-			Navigator.go_to("settings")
+			_show_settings_main()
 			Global.img_texture_override = null
 			return
 		if Global.get_selected().clean.to_lower() == "ok":

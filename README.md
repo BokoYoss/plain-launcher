@@ -1,74 +1,158 @@
 # Plain Launcher
-Plain Launcher is an Android emulation frontend and app launcher written in Godot.
+
+Plain Launcher is a minimal emulation frontend and app launcher built in Godot. It is primarly designed for Android-based handhelds with physical buttons, but can work on your phone if you are so inclined.
 
 ![Example Menu](https://github.com/BokoYoss/plain-launcher/blob/main/screenshots/Screenshot_20231225-024047.png)
 
-### Features
-- Controller support as primary means of navigation. Touch control is fully supported as well.
-- Cover art for games, displaying instantly on scroll. No need to wait for covers to load... in theory.
-- Adding games is as easy as adding/removing your game files in the right place- no need to scan or import.
-- Add/remove favorites with the tap of a button
-- Hide/unhide anything with the tap of a button (You can always go to Settings->Visual->Show Hidden if you accidentally hide something you didn't want to)
-- Visual settings for palette selection, font selection, cover borders, drop shadows, and more!
-- Full support for launching Android applications (you could use this as your primary launcher on your phone, if you were so inclined, but it is intended for Android-based handhelds)
-- Per-system and per-game emulation configuration for setting cores or apps.
-- Support for launching Retroarch (multiple versions), PPSSPP, AetherSX2, Dolphin, and more coming soon!
-- Look up and download cover art easily from the menu!
-- Configure game storage paths on a per-system basis
+## Features
 
- ![Example color picker](https://github.com/BokoYoss/plain-launcher/blob/main/screenshots/Screenshot_20231225-024111.png)
- 
-### Instructions
+- **Controller-friendly navigation** with full touch support
+- **Instant cover art** — images display as you scroll
+- **Zero-import game library** — just drop files in the right folder, no scanning needed. Out-of-the-box support for common directory structures like ES-DE.
+- **Automatic cover art scraping** via ScreenScraper or SteamGridDB
+- **Recent games** — a built-in Recent system tracks your play history
+- **Custom display names** via alias files. Common aliases (i.e. for Arcade files) are included out of the box.
+- **Full Android app launching** — usable as a home launcher.
+- **Extensive visual customization** — color palette, font, cover size/position/opacity/border, drop shadows, title style, margins, and more
 
-#### Storage
-1. After starting the app, you will be prompted to set what button is Confirm on your controller ("X" styled south face button vs. "A" styled east face button). You can always swap this in settings later.
-2. Next, you need to set a home directory for Plain Launcher. You can choose to use internal storage, try an external card, or pick somewhere else (this last option is not as well-tested as the first two, which are recommended). After choosing a location, Plain Launcher will set up Imgs, Games and Config directories. If you selected on-device or removable storage, these will be under a top-level PlainLauncher directory.
-3. Populate the Games directory and Imgs directory with your game backups. The directories should be self-explanatory. Image files must be `.png` and match the file name of your game *without the extension*. For example, you might configure your games and images like so:
+## Supported Systems
+
+NES, SNES, N64, GB, GBC, GBA, NDS, N3DS, PlayStation, PS2, PSP, Genesis, Sega CD, Saturn, Dreamcast, GameCube, Wii, Neo Geo, PC Engine, Arcade, Master System, Neo Geo Pocket, Switch, DOOM, Quake
+
+## Supported Emulators
+
+RetroArch (standard, 64-bit, 32-bit), DuckStation, PPSSPP, PPSSPP Gold, AetherSX2, Dolphin, Mupen64Plus (and AE, FZ, FZ Pro variants), Citra, Drastic, Yabause, Flycast, Redream, Azahar, Eden, Skyline, and more
+
+**Note that Plain Launcher does not provide any game files or emulators itself- you'll have to get those on your own. Plain Launcher is merely a frontend.**
+
+---
+
+## Setup
+
+### 1. First launch
+
+On first launch you'll be asked to choose your confirm button layout (south-face vs east-face style). You can change this later under Settings → Controls.
+
+Then set a home directory. You can pick the internal storage of your devices or an external storage path. Plain Launcher will create the following structure there:
 
 ```
 PlainLauncher/
- >Imgs/
-  >GB/
-   >Blue Bayou.png
- >Games/
-  >GB/
-   >Blue Bayou.gb
+├── Games/
+│   └── GBA/
+│       └── My Game.gba
+├── Imgs/
+│   └── GBA/
+│       └── My Game.png
+└── Config/
+	└── GBA/
+		└── config.json
 ```
 
-#### Controller bindings
-- Confirm: Right face button for "N" style controls, bottom face button for "X" style controls.
-- Back: Bottom face button for "N" style controls, right face button for "X" style controls.
-- Pressing "Back" in the "Systems" menu takes you to Plain Launcher settings.
-- Options: Hold Confirm and release
-- In the "Systems" menu, this will take you to options for that specific game system
-- In the games or android menu, this will take you to per-game options
-- Toggle favorite: Start
-- Cycle size: LB
-- Cycle cover art size: RB
-- Cycle cover border: L3
-- Cycle drop shadow: R3
+### 2. Adding games
 
-#### Touch controls
-- Confirm: Tap anywhere
-- Back: Drag from right to left and release
-- Scroll once: Swipe up or down anywhere
-- Scroll multiple: Drag up or down and hold position
-- Options: Drag right and release
+Place game files in `PlainLauncher/Games/<SYSTEM>/`. Plain Launcher picks them up automatically.
 
-#### Cover Art
+You can also add additional file paths for games, and Plain Launcher comes with some common ones enabled that follow the format of other launchers. For example- you should be able to keep your ES-DE directory setup as-is and have Plain Launcher pick it up!
 
-- You can search for cover art online from a game's options menu.
-- Cover art isn't just for games- you can add it to Android or System items as well!
-- Art needs to be a png file
-- Art should be named the same as the game file it is associated with, without the game file extension. For example, if I have the game file PlainLauncher/Games/GBA/Apotris (USA).gba, I would put the matching artwork in PlainLauncher/Imgs/GBA/Apotris (USA).png
+### 3. Cover art
 
+Place cover art in `Imgs/<SYSTEM>/`. Images must be `.png` and named to match the game file without its extension.
 
-### Building
-1. Requires the addon [plain-launcher-android-plugin](https://github.com/BokoYoss/plain-launcher-android-plugin) and add the addon to `addons/`. This has been automated for windows users with `setup-plugin.bat`
+**Example:** `Games/GBA/Apotris (USA).gba` → `Imgs/GBA/Apotris (USA).png`
 
-### Credits
+Cover art works for Android apps and system entries too, not just games.
 
-- All fonts are from Google fonts, licensed under the Open Font License. See in-game licenses under Settings->Credits->Fonts
-- [Duel](https://lospec.com/palette-list/duel) color palette for the color picker was created by [Arilyn](https://lospec.com/arilynart) on Lospec.
-- Included system images are from Evan Amos- check out the awesome [Vanamo Online Game Museum](https://commons.wikimedia.org/wiki/User:Evan-Amos)
+## Cover Art Scraping
 
+From any game or system's options menu, select **Scrape artwork** (single game) or **Scrape all artwork** (whole system). You'll be asked which backend to use:
+
+- **ScreenScraper** — matches by filename against the ScreenScraper database
+- **SteamGridDB** — searches by game name; useful for games not in ScreenScraper
+
+Set your credentials under **Settings → Scraper** before scraping.
+
+Alternatively, you can look up cover art via the browser with the **Look for cover art..** option- for those boxarts that fail to scrape!
+---
+
+## Controls
+
+### Controller
+
+| Action | Button |
+|--------|--------|
+| Confirm | South face button (configurable) |
+| Back | East face button (configurable) |
+| Options | North face button / hold Confirm |
+| Toggle favorite | Start |
+
+- **Back** from the Systems screen opens Settings
+- **Options** on a system folder opens system-level settings
+- **Options** on a game opens per-game settings
+
+### Touch
+
+| Action | Gesture |
+|--------|---------|
+| Confirm | Tap |
+| Back | Drag left and release |
+| Scroll | Swipe or drag up/down |
+| Options | Drag right and release |
+
+---
+
+## Configuration
+
+### Per-game and per-system settings
+
+Open the options menu on any game or system to configure the emulator, core, and file extension used to launch it. Settings are saved to `Config/<SYSTEM>/config.json`.
+
+### Custom display names (aliases)
+
+Create `Config/<SYSTEM>/alias.json` to map filenames to display names:
+
+```json
+{
+  "smb.nes": "Super Mario Bros.",
+  "smb3.nes": "Super Mario Bros. 3"
+}
+```
+
+`Config/COMMON/alias.json` applies to the systems list itself.
+
+### Additional art paths
+
+From a system's options menu, set an **Additional art path** to look up cover images from a second directory when none is found in the default `Imgs/<SYSTEM>/` location.
+
+### Additional game paths
+
+From a system's options menu, add extra directories to merge into the game list alongside the default `Games/<SYSTEM>/` folder. By default, common paths for other frontends are included.
+
+---
+
+## Building
+
+1. Install the [plain-launcher-android-plugin](https://github.com/BokoYoss/plain-launcher-android-plugin) into `addons/`. Windows users can run `setup-plugin.bat` to do this automatically.
+2. Open the project in Godot 4.
+3. Export for Android using the included export preset.
+
+### Developer secrets
+
+To use the ScreenScraper API during development, create `secrets.json` in the project root (gitignored):
+
+```json
+{
+  "SS_DEVID": "your_devid",
+  "SS_DEVPASS": "your_devpassword",
+  "SS_SOFT_NAME": "your_software_name"
+}
+```
+
+See `secrets.example.json` for the template. Without this file the app runs normally — ScreenScraper will simply show as unavailable.
+
+---
+
+## Credits
+
+- Fonts from [Google Fonts](https://fonts.google.com/), licensed under the Open Font License. See in-app licenses under Settings → Credits → Fonts.
+- [Duel](https://lospec.com/palette-list/duel) color palette by [Arilyn](https://lospec.com/arilynart) on Lospec.
+- System images by Evan Amos — [Vanamo Online Game Museum](https://commons.wikimedia.org/wiki/User:Evan-Amos).

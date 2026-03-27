@@ -1,4 +1,4 @@
-extends component
+extends Screen
 
 var current_dir: DirAccess = null
 
@@ -14,6 +14,7 @@ var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
+	Global.no_alias = false
 	Global.fade.modulate.a = 1.0
 	if Global.subscreen != "RECENT":
 		Global.populate_filter = Callable(self, "filter_item")
@@ -52,8 +53,15 @@ func populate_content(msg_override=null):
 	Global.refresh_alias(Global.subscreen)
 	Global.list_multiple_paths_combined(paths)
 
-	Global.show_message(str(Global.option_list.size()) + " games found", true)
-	Global.show_message("SELECT for " + Global.subscreen + " options")
+	if Settings.get_setting(Settings.CFG_SHOW_FAVS_FIRST):
+		var favs = Global.option_list.filter(func(o): return Global.favorites_list.has(o.absolute_path))
+		var others = Global.option_list.filter(func(o): return not Global.favorites_list.has(o.absolute_path))
+		Global.option_list = favs + others
+		Global.restore_position()
+		Global.highlight_selection()
+
+	#Global.show_message(str(Global.option_list.size()) + " games found", true)
+	#Global.show_message("SELECT for " + Global.subscreen + " options")
 
 	if msg_override != null:
 		Global.show_message(msg_override, true)
@@ -73,7 +81,19 @@ func populate_recent():
 	Global.set_up_slots()
 	Global.restore_position()
 	Global.highlight_selection()
-	Global.show_message(str(Global.option_list.size()) + " recently played", true)
+	#Global.show_message(str(Global.option_list.size()) + " recently played", true)
+	Global.refresh_art()
+
+func _on_resume():
+	Global.no_alias = false
+	if Global.subscreen == "FAVORITES":
+		populate_content()
+		return
+	if Global.subscreen != "RECENT":
+		Global.populate_filter = Callable(self, "filter_item")
+	Global.set_up_slots()
+	Global.show_options(Global.scroll_offset)
+	Global.highlight_selection()
 	Global.refresh_art()
 
 func jump_to_letter(direction: int):
@@ -125,7 +145,7 @@ func _process(delta):
 		var launch_message: String = launcher.launch_with_settings(system_settings, game_path)
 		if launch_message != "":
 			Global.failure_message = launch_message
-			Navigator.go_to("failure_screen")
+			Navigator.push("failure_screen")
 		else:
 			Global.log_recent(game_path, selected.system, selected.clean)
 	if Input.is_action_just_pressed("shoulder_r"):
@@ -143,11 +163,11 @@ func _process(delta):
 	else:
 		shoulder_held_dir = 0
 	if Global.back_pressed():
-		Navigator.go_to("system_browser")
+		Navigator.pop()
 		return
 	if Input.is_action_just_pressed("start"):
 		if Global.get_selected().clean == "":
 			return
 		Global.store_position()
-		Global.toggle_favorite()
+		Global.toggle_favorite(Global.get_selected())
 		populate_content()

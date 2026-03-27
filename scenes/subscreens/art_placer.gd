@@ -47,13 +47,13 @@ func _physics_process(delta):
 	if Input.is_action_pressed("start"):
 		Settings.store(Settings.CFG_VISUAL_ART_POSITION_X, Settings.DEFAULT_SETTINGS[Settings.CFG_VISUAL_ART_POSITION_X])
 		Settings.store(Settings.CFG_VISUAL_ART_POSITION_Y, Settings.DEFAULT_SETTINGS[Settings.CFG_VISUAL_ART_POSITION_Y])
-		Navigator.go_to("settings")
+		Navigator.pop()
 	if Time.get_ticks_msec() - start_time > 500:
 		if Global.confirm_pressed():
 			var relative_x = CURSOR.position.x / Global.window_width
 			var relative_y = CURSOR.position.y / Global.window_height
 			Settings.store(Settings.CFG_VISUAL_ART_POSITION_X, relative_x)
 			Settings.store(Settings.CFG_VISUAL_ART_POSITION_Y, relative_y)
-			Navigator.go_to("settings")
+			Navigator.pop()
 		if Global.back_pressed():
-			Navigator.go_to("settings")
+			Navigator.pop()

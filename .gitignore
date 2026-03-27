@@ -14,3 +14,5 @@ android/*
 
 *.asepriteoutput/*
 *.vpk
+
+secrets.json

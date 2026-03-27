@@ -1,4 +1,4 @@
-extends component
+extends Screen
 
 var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 var launcher
@@ -13,7 +13,7 @@ func _ready():
 		Navigator.go_to_main()
 		return
 	Global.post_draw_callback = Callable(self, "show_indicators")
-	Global.on_leave_component = Callable(self, "store_settings")
+	Global.on_leave_screen = Callable(self, "store_settings")
 	Global.no_alias = true
 	refresh_extensions()
 
@@ -64,7 +64,7 @@ func _process(delta):
 	if Global.back_pressed():
 		store_settings()
 		print("back")
-		Navigator.go_to("special", "", true)
+		Navigator.pop()
 		return
 	if Input.is_action_just_pressed("exit"):
 		Navigator.go_to_main()

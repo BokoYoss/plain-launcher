@@ -1,4 +1,4 @@
-extends component
+extends Screen
 
 var launcher = null
 
@@ -42,10 +42,10 @@ func _process(delta):
 		if Global.get_selected().clean.begins_with("https"):
 			AndroidInterface.launch_intent(JSON.stringify({"action": "android.intent.action.VIEW", "data": Global.get_selected().clean}))
 			return
-		Navigator.back_to_previous_screen()
+		Navigator.pop()
 	if Global.back_pressed():
 		Global.store_position()
 		if Global.title.text == "Font credits":
 			populate_content()
 			return
-		Navigator.back_to_previous_screen()
+		Navigator.pop()

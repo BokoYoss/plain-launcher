@@ -1,4 +1,4 @@
-extends component
+extends Screen
 
 var launcher = null
 
@@ -67,7 +67,7 @@ func _process(delta):
 				Global.font = ResourceLoader.load(font_list["Default"].get("Medium"))
 				Settings.store(Settings.CFG_FONT, font_list["Default"].get("Medium"))
 				Global.refresh_fonts()
-				Navigator.back_to_previous_screen()
+				Navigator.pop()
 				return
 			current_font_subdir = Global.get_selected().filename
 			populate_content()
@@ -80,7 +80,7 @@ func _process(delta):
 			Settings.store(Settings.CFG_FONT, font_list["Default"].get("Medium"))
 			Global.font = ResourceLoader.load(font_list["Default"].get("Medium"))
 		Global.refresh_fonts()
-		Navigator.back_to_previous_screen()
+		Navigator.pop()
 	elif Global.back_pressed():
 		Global.store_position()
 		if current_font_subdir != null:
@@ -91,4 +91,4 @@ func _process(delta):
 			Settings.store(Settings.CFG_FONT, font_list["Default"].get("Medium"))
 			Global.font = ResourceLoader.load(font_list["Default"].get("Medium"))
 		Global.refresh_fonts()
-		Navigator.back_to_previous_screen()
+		Navigator.pop()

@@ -1,4 +1,4 @@
-extends component
+extends Screen
 
 var launcher = null
 
@@ -41,7 +41,7 @@ func clean_options():
 	for i in range(0, Global.visible_slots.size()):
 		if i >= Global.option_list.size():
 			Global.visible_slots[i].text = ""
-	Global.show_options(Global.scroll_offset)
+	Global.populate_favorites()
 	Global.highlight_selection()
 
 func populate_content(msg_override=null):
@@ -71,7 +71,7 @@ func _process(delta):
 			elif selected == "emulators":
 				Global.store_position()
 				Global.subscreen = "EMULATORS"
-				Navigator.go_to("emulator_picker")
+				Navigator.push("emulator_picker")
 				return
 			elif selected == "files":
 				Global.store_position()
@@ -106,6 +106,6 @@ func _process(delta):
 			return
 		var title = Global.title.text
 		Global.store_position()
-		Global.toggle_favorite()
+		Global.toggle_favorite(Global.get_selected())
 		Global.title.text = title
 		Global.restore_position()

@@ -9,6 +9,7 @@ func _ready():
 		_android_plugin.connect("configure_storage_location", storage_selection)
 		_android_plugin.connect("image_downloaded", image_downloaded)
 		_android_plugin.connect("failure_to_launch", failed_to_launch)
+		_android_plugin.connect("text_input_complete", _on_text_input_complete)
 	else:
 		printerr("Couldn't find plugin " + _plugin_name)
 
@@ -16,13 +17,15 @@ signal configured_storage(selection)
 signal configure_storage_failure(message)
 signal got_image(path)
 signal failure_to_launch(message)
+signal text_input_complete(text)
 
 func failed_to_launch(message):
 	if Global.pending_game != "":
-		Navigator.go_to("failure_screen")
+		Navigator.push("failure_screen")
 
 func image_downloaded(path):
-	print("IMAGE DOWNLOADED NOWWWWW " + path)
+	print("IMAGE DOWNLOADED: " + path)
+	emit_signal("got_image", path)
 
 func storage_selection(selection: String):
 	# Do some cleanup of Android's URIs- this is probably brittle
@@ -74,6 +77,10 @@ func launch_default_app(category: String):
 	Global.store_positions_files()
 	return _android_plugin.launchDefaultApp(category)
 
+func look_for_art_web(game: String, system: String, source: String):
+	print("Opening in-app browser for " + game + " (" + system + ") on " + source)
+	return _android_plugin.launchWebImagePicker(game, system, source)
+
 func look_for_art(game: String, system: String, source: String = "google"):
 	print("Looking for art for " + Global.ALIAS_MAP.get(game, game) + " (" + system + ") on " + source)
 	return _android_plugin.launchBrowserForDownload(Global.ALIAS_MAP.get(game, game).split("[")[0], system, source.to_lower())
@@ -90,6 +97,12 @@ func app_settings(package_name):
 	Global.store_positions_files()
 	print("Opening settings for " + str(package_name))
 	_android_plugin.openAppSpecificSettings(package_name)
+
+func show_text_input(prompt: String, current_value: String, is_password: bool):
+	_android_plugin.showTextInput(prompt, current_value, is_password)
+
+func _on_text_input_complete(text: String):
+	emit_signal("text_input_complete", text)
 
 func choose_file():
 	_android_plugin.chooseFile()
