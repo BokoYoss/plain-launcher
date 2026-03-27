@@ -32,6 +32,7 @@ var message: Label = null
 @onready var slot_holder = $SlotHolder
 var message_queue = []
 var cursor_positions = {}
+var cursor_indices = {}
 var scroll_offsets = {}
 
 var confirming = false
@@ -711,7 +712,7 @@ func favorite_name(system, selected_name):
 
 func add_favorite(item):
 	Global.populate_favorites()
-	if item.favorite_dir or Global.favorites_list.has(item.absolute_path) or Global.subscreen == "favorites":
+	if item.favorite_dir or Global.favorites_list.has(item.absolute_path):
 		return
 	var fav_dir_path = Global.root_path + Global.PATH_GAMES + "FAVORITES"
 	var fav_dir = DirAccess.open(fav_dir_path)
@@ -725,22 +726,17 @@ func add_favorite(item):
 	fav_file.close()
 	Global.populate_favorites()
 
-func remove_favorite():
+func remove_favorite(item):
 	Global.populate_favorites()
-	var item = Global.get_selected()
-	if Navigator.current_screen == "special":
-		item = Global.special_item
 	var fav_dir_path = Global.root_path + Global.PATH_GAMES + "FAVORITES"
 	var fav_dir = DirAccess.open(fav_dir_path)
 	if not fav_dir:
 		return
-	var fav_system = Global.subscreen
-	var removed_from_favorite_list = item.favorite_dir
-	if removed_from_favorite_list:
+	if item.favorite_dir:
 		print("REMOVING FAVORITE " + item.filename)
 		fav_dir.remove(item.filename)
 	else:
-		var fav_name = favorite_name(fav_system, item.clean)
+		var fav_name = favorite_name(item.system, item.clean)
 		print("REMOVING FAVORITE " + fav_name)
 		fav_dir.remove(fav_name)
 	Global.store_position()
@@ -749,8 +745,8 @@ func remove_favorite():
 func toggle_favorite(item):
 	if item.clean == "":
 		return
-	if Global.subscreen == "FAVORITES" or Global.favorites_list.has(item.absolute_path):
-		remove_favorite()
+	if item.favorite_dir or Global.favorites_list.has(item.absolute_path):
+		remove_favorite(item)
 		Global.show_message("Removed from FAVORITES", true)
 	else:
 		add_favorite(item)
@@ -952,7 +948,7 @@ func get_system_settings(system_for_settings=Global.subscreen):
 	if FileAccess.file_exists(current_settings_path):
 		system_settings = JSON.parse_string(FileAccess.get_file_as_string(current_settings_path))
 	else:
-		system_settings = build_system_settings_from_options()
+		system_settings = build_system_settings_from_options(system_for_settings)
 	return system_settings
 
 func get_paths_filepath(prefix=""):
@@ -1033,9 +1029,11 @@ func get_stored_cursor_position():
 func store_position():
 	if Navigator.current_screen == "file_browser":
 		cursor_positions[message.text.to_lower()] = option_selection
+		cursor_indices[message.text.to_lower()] = option_selection
 		scroll_offsets[message.text.to_lower()] = scroll_offset
 	else:
 		cursor_positions[title.text.to_lower()] = Global.get_selected().absolute_path
+		cursor_indices[title.text.to_lower()] = option_selection
 		scroll_offsets[title.text.to_lower()] = scroll_offset
 
 func restore_position():
@@ -1050,8 +1048,12 @@ func restore_position():
 			option_selection += 1
 			scroll_offset = max(0, option_selection - visible_slots.size())
 		if option_selection == option_list.size():
-			option_selection = 0
-			scroll_offset = 0
+			# Path match failed — fall back to stored numeric index
+			var title_key = message.text.to_lower() if Navigator.current_screen == "file_browser" else title.text.to_lower()
+			var stored_idx = cursor_indices.get(title_key, 0)
+			option_selection = min(stored_idx, option_list.size() - 1)
+			var stored_scroll = scroll_offsets.get(title_key, 0)
+			scroll_offset = min(stored_scroll, max(0, option_list.size() - visible_slots.size()))
 
 		if not option_list.is_empty() and option_selection >= option_list.size():
 			option_selection = option_list.size() - 1
@@ -1340,9 +1342,9 @@ func get_image_path(selected=Global.get_selected()):
 	var system_in_question = selected.system
 	var game_title = selected.filename.get_basename()
 	if selected.favorite_dir:
-		var game_path = FileAccess.get_file_as_string(Global.root_path + "/" + Global.PATH_GAMES + "/FAVORITES/" + selected.filename)
-		game_title = game_path.split("/")[-1].get_basename()
-		system_in_question = Global.get_selected().filename.split("] ")[0].replace("[", "")
+		var parts = selected.filename.split("] ")
+		game_title = parts[1].get_basename() if parts.size() > 1 else game_title
+		system_in_question = selected.filename.split("]")[0].replace("[", "")
 	if game_title == system_in_question:
 		if not Settings.get_setting(Settings.CFG_VISUAL_BUILTIN_SYSTEM_ART):
 			return str(Global.root_path + Global.PATH_IMAGES + system_in_question + "_custom.png").replace("//", "/")

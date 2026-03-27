@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cu05pqkwufvah"]
+
+[ext_resource type="Script" uid="uid://cibrows2plain0" path="res://scenes/subscreens/intent_browser.gd" id="1_ibrows"]
+
+[node name="IntentBrowser" type="Node2D"]
+script = ExtResource("1_ibrows")

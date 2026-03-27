@@ -71,6 +71,8 @@ func populate_content():
 
 	if not system_settings.is_empty():
 		settings.append_array(system_settings.keys())
+		if Global.special_item.is_dir:
+			settings.append("Add emulators")
 		settings.append("RESTORE DEFAULTS")
 	if Global.special_item.system == "ANDROID":
 		settings.append("Open app settings")
@@ -86,10 +88,10 @@ func populate_content():
 
 func refresh_disk_settings():
 	if system_settings == null:
-		system_settings = Global.get_system_settings()
+		system_settings = Global.get_system_settings(Global.special_item.system)
 
 func write_settings_to_disk():
-	var settings_path = Global.root_path  + Global.PATH_CONFIG + Global.subscreen
+	var settings_path = Global.root_path  + Global.PATH_CONFIG + Global.special_item.system
 	if !Global.special_item.is_dir:
 		settings_path = settings_path + "/" + Global.special_item.clean + ".json"
 	else:
@@ -103,7 +105,7 @@ func write_settings_to_disk():
 	print("STORE SETTINGS " + str(system_settings) + " to " + settings_path)
 	var settings_file = FileAccess.open(settings_path, FileAccess.WRITE)
 	var string_settings = JSON.stringify(system_settings, "    ")
-	print("Saving " + Global.subscreen + " settings: " + string_settings)
+	print("Saving " + Global.special_item.system + " settings: " + string_settings)
 	settings_file.store_string(string_settings)
 	settings_file.close()
 
@@ -187,6 +189,9 @@ func _process(delta):
 		elif selected == "extensions":
 			Navigator.push("extension_selector")
 			return
+		elif selected == "add emulators":
+			Navigator.push("emulator_selector")
+			return
 		elif "restore defaults" in selected:
 			system_settings = null
 			write_settings_to_disk()
@@ -197,7 +202,7 @@ func _process(delta):
 			var current_value = system_settings.get(selected)
 			print("CURRENT SETTING KEY: " + selected + " VALUE: " + system_settings.get(selected))
 			var display_options = []
-			system_settings_options = Global.get_system_settings_options()
+			system_settings_options = Global.get_system_settings_options(Global.special_item.system)
 			if system_settings_options == null:
 				print("Options not found")
 				return

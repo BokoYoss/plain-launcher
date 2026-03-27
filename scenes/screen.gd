@@ -7,4 +7,5 @@ func _process(delta):
 	pass
 
 func _on_resume():
-	pass
+	Global.show_options(Global.scroll_offset)
+	Global.highlight_selection()

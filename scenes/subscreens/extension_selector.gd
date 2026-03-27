@@ -7,8 +7,8 @@ var system_settings = {}
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	var choice_path = Global.root_path + Global.PATH_CONFIG + Global.subscreen + "/choices.json"
-	if Global.subscreen == "" or not FileAccess.file_exists(choice_path):
+	var choice_path = Global.root_path + Global.PATH_CONFIG + Global.special_item.system + "/choices.json"
+	if Global.special_item == null or not FileAccess.file_exists(choice_path):
 		print(choice_path)
 		Navigator.go_to_main()
 		return
@@ -18,20 +18,20 @@ func _ready():
 	refresh_extensions()
 
 func refresh_extensions():
-	var choice_path = Global.root_path + Global.PATH_CONFIG + Global.subscreen + "/choices.json"
+	var choice_path = Global.root_path + Global.PATH_CONFIG + Global.special_item.system + "/choices.json"
 	var choices = JSON.parse_string(FileAccess.get_file_as_string(choice_path))
 
 	var valid_extensions = choices.get("EXTENSIONS")
 
 	if system_settings.is_empty():
-		system_settings = Global.get_system_settings()
+		system_settings = Global.get_system_settings(Global.special_item.system)
 	var selected_extensions = system_settings.get("EXTENSIONS")
-	Global.clear_visible(Global.subscreen + " extensions", valid_extensions)
+	Global.clear_visible(Global.special_item.system + " extensions", valid_extensions)
 	show_indicators()
 
 func show_indicators():
 	if system_settings.is_empty():
-		system_settings = Global.get_system_settings()
+		system_settings = Global.get_system_settings(Global.special_item.system)
 	if system_settings.is_empty():
 		return
 	var selected_extensions = system_settings.get("EXTENSIONS")
@@ -45,8 +45,8 @@ func show_indicators():
 
 func store_settings():
 	if system_settings.is_empty():
-		system_settings = Global.get_system_settings()
-	var settings_file = FileAccess.open(Global.root_path + Global.PATH_CONFIG + Global.subscreen + "/config.json", FileAccess.WRITE)
+		system_settings = Global.get_system_settings(Global.special_item.system)
+	var settings_file = FileAccess.open(Global.root_path + Global.PATH_CONFIG + Global.special_item.system + "/config.json", FileAccess.WRITE)
 	settings_file.store_string(JSON.stringify(system_settings, "   "))
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.

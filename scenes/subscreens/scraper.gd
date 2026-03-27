@@ -37,7 +37,7 @@ func _ready():
 	add_child(http_image)
 	add_child(http_extra)
 
-	system = Global.subscreen
+	system = Global.special_item.system if Global.special_item != null else Global.subscreen
 	if Global.special_item != null and not Global.special_item.is_dir:
 		system = Global.special_item.system
 		single_game = true

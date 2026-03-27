@@ -4,10 +4,9 @@
 		"componentPackage": "com.retroarch",
 		"componentClass": "com.retroarch.browser.retroactivity.RetroActivityFuture",
 		"extras": {
-			"ROM": "<GAME>",
-			"LIBRETRO": "/data/data/com.retroarch/cores/<CORE>_libretro_android.so",
-			"CONFIGFILE": "/storage/emulated/0/Android/data/com.retroarch/files/retroarch.cfg",
-			"QUITFOCUS": "true"
+			"ROM": "{game}",
+			"LIBRETRO": "{data_dir}/cores/{core}_libretro_android.so",
+			"CONFIGFILE": "/storage/emulated/0/Android/data/{package}/files/retroarch.cfg"
 		}
 	},
 	"retroarch64" : {
@@ -15,10 +14,9 @@
 		"componentPackage": "com.retroarch.aarch64",
 		"componentClass": "com.retroarch.browser.retroactivity.RetroActivityFuture",
 		"extras": {
-			"ROM": "<GAME>",
-			"LIBRETRO": "/data/data/com.retroarch.aarch64/cores/<CORE>_libretro_android.so",
-			"CONFIGFILE": "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/retroarch.cfg",
-			"QUITFOCUS": "true"
+			"ROM": "{game}",
+			"LIBRETRO": "{data_dir}/cores/{core}_libretro_android.so",
+			"CONFIGFILE": "/storage/emulated/0/Android/data/{package}/files/retroarch.cfg"
 		}
 	},
 	"retroarch32" : {
@@ -26,10 +24,9 @@
 		"componentPackage": "com.retroarch.ra32",
 		"componentClass": "com.retroarch.browser.retroactivity.RetroActivityFuture",
 		"extras": {
-			"ROM": "<GAME>",
-			"LIBRETRO": "/data/data/com.retroarch.ra32/cores/<CORE>_libretro_android.so",
-			"CONFIGFILE": "/storage/emulated/0/Android/data/com.retroarch.ra32/files/retroarch.cfg",
-			"QUITFOCUS": "true"
+			"ROM": "{game}",
+			"LIBRETRO": "{data_dir}/cores/{core}_libretro_android.so",
+			"CONFIGFILE": "/storage/emulated/0/Android/data/{package}/files/retroarch.cfg"
 		}
 	},
 	"duckstation" : {
@@ -37,47 +34,47 @@
 		"componentPackage": "com.github.stenzek.duckstation",
 		"componentClass": "com.github.stenzek.duckstation.EmulationActivity",
 		"extras": {
-			"bootPath": "<GAME>"
+			"bootPath": "{game}"
 		}
 	},
 	"ppsspp": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.ppsspp.ppsspp",
 		"componentClass": "org.ppsspp.ppsspp.PpssppActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"ppssppgold": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.ppsspp.ppssppgold",
 		"componentClass": "org.ppsspp.ppsspp.PpssppActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"aethersx2": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "xyz.aethersx2.android",
 		"componentClass": "xyz.aethersx2.android.EmulationActivity",
 		"extras": {
-			"bootPath": "<GAME>"
+			"bootPath": "{game}"
 		}
 	},
 	"dolphin": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.dolphinemu.dolphinemu",
 		"componentClass": "org.dolphinemu.dolphinemu.ui.main.MainActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"azahar": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "io.github.lime3ds.android",
 		"componentClass": "org.citra.citra_emu.activities.EmulationActivity",
-		"providedFile": "<GAME>"
+		"providedFile": "{game}"
 	},
 	"citra": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.citra.emu",
 		"componentClass": "org.citra.emu.ui.EmulationActivity",
 		"extras": {
-			"GamePath": "<GAME>"
+			"GamePath": "{game}"
 		}
 	},
 	"citra_weihuoya": {
@@ -85,21 +82,21 @@
 		"componentPackage": "org.citra.emu",
 		"componentClass": "org.citra.emu.ui.EmulationActivity",
 		"extras": {
-			"GamePath": "<GAME>"
+			"GamePath": "{game}"
 		}
 	},
 	"drastic": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "com.dsemu.drastic",
 		"componentClass": "com.dsemu.drastic.DraSticActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"yabause": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.uoyabause.android",
 		"componentClass": "org.uoyabause.android.Yabause",
 		"extras": {
-			"org.uoyabause.android.FileNameEx": "<GAME>"
+			"org.uoyabause.android.FileNameEx": "{game}"
 		}
 	},
 	"yabause_pro": {
@@ -107,7 +104,7 @@
 		"componentPackage": "org.uoyabause.android.pro",
 		"componentClass": "org.uoyabause.android.pro.org.uoyabause.android.Yabause",
 		"extras": {
-			"org.uoyabause.android.FileNameEx": "<GAME>"
+			"org.uoyabause.android.FileNameEx": "{game}"
 		}
 	},
 	"yabause_pro2": {
@@ -115,73 +112,101 @@
 		"componentPackage": "org.devmiyax.yabasanshioro2.pro",
 		"componentClass": "org.devmiyax.yabasanshioro2.pro.org.uoyabause.android.Yabause",
 		"extras": {
-			"org.uoyabause.android.FileNameEx": "<GAME>"
+			"org.uoyabause.android.FileNameEx": "{game}"
 		}
 	},
 	"flycast": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "com.flycast.emulator",
 		"componentClass": "com.flycast.emulator.com.reicast.emulator.MainActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"reicast": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "com.reicast.emulator",
 		"componentClass": "com.reicast.emulator.MainActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"redream": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "io.recompiled.redream",
 		"componentClass": "io.recompiled.redream.MainActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"mupen64plus": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.mupen64plusae.v3.alpha",
 		"componentClass": "paulscode.android.mupen64plusae.SplashActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"mupen64plus_ae": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.mupen64plusae",
 		"componentClass": "paulscode.android.mupen64plusae.MainActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"mupen64plus_fz": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.mupen64plusae.v3.fzurita",
 		"componentClass": "paulscode.android.mupen64plusae.SplashActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"mupen64plus_fz_pro": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.mupen64plusae.v3.fzurita.pro",
 		"componentClass": "paulscode.android.mupen64plusae.SplashActivity",
-		"data": "<GAME>"
+		"data": "{game}"
 	},
 	"yuzu": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "org.yuzu.yuzu_emu",
 		"componentClass": "org.yuzu.yuzu_emu.activities.EmulationActivity",
-		"providedFile": "<GAME>"
+		"providedFile": "{game}"
 	},
 	"suyu": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "dev.suyu.suyu_emu",
 		"componentClass": "dev.suyu.suyu_emu.activities.EmulationActivity",
-		"providedFile": "<GAME>"
+		"providedFile": "{game}"
 	},
 	"skyline": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "skyline.emu",
 		"componentClass": "emu.skyline.EmulationActivity",
-		"providedFile": "<GAME>"
+		"providedFile": "{game}"
 	},
 	"eden": {
 		"action": "android.intent.action.VIEW",
 		"componentPackage": "dev.eden.eden_emulator",
 		"componentClass": "org.yuzu.yuzu_emu.activities.EmulationActivity",
-		"providedFile": "<GAME>"
+		"providedFile": "{game}"
+	},
+	"melonds": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "me.magnum.melonds",
+		"componentClass": "me.magnum.melonds.ui.MainActivity",
+		"data": "{game}"
+	},
+	"scummvm": {
+		"action": "android.intent.action.MAIN",
+		"componentPackage": "org.scummvm.scummvm",
+		"componentClass": "org.scummvm.scummvm.ScummVMActivity"
+	},
+	"vita3k": {
+		"action": "android.intent.action.MAIN",
+		"componentPackage": "org.vita3k.emulator",
+		"componentClass": "org.vita3k.emulator.activity.MainActivity"
+	},
+	"myboy": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "com.fastemulator.gba",
+		"componentClass": "com.fastemulator.gba.GBAActivity",
+		"data": "{game}"
+	},
+	"myoldboy": {
+		"action": "android.intent.action.VIEW",
+		"componentPackage": "com.fastemulator.gbc",
+		"componentClass": "com.fastemulator.gbc.GBCActivity",
+		"data": "{game}"
 	},
 }

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://emulsel1plain0"]
+
+[ext_resource type="Script" uid="uid://emulsel2plain0" path="res://scenes/subscreens/emulator_selector.gd" id="1_emulsel"]
+
+[node name="emulator_selector" type="Node2D"]
+script = ExtResource("1_emulsel")
