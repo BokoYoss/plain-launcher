@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://bosfmsfigw4w"]
+[gd_scene load_steps=8 format=3 uid="uid://bosfmsfigw4w"]
 
 [ext_resource type="Script" uid="uid://n2kt1yycdy1j" path="res://scenes/global.gd" id="1_t5b2j"]
 [ext_resource type="FontFile" uid="uid://bxogra0srflo1" path="res://launcher_configs/COMMON/fonts/Rubik/Rubik-Medium.ttf" id="2_k2p8q"]
@@ -9,6 +9,15 @@ colors = PackedColorArray(0, 0, 0, 0, 1, 1, 1, 1)
 
 [sub_resource type="GradientTexture2D" id="GradientTexture2D_wut5y"]
 gradient = SubResource("Gradient_yjw4f")
+
+[sub_resource type="Gradient" id="Gradient_opebo"]
+offsets = PackedFloat32Array(0.435065, 0.448052)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_m3l3d"]
+gradient = SubResource("Gradient_opebo")
+fill = 1
+fill_from = Vector2(0.5, 0.5)
 
 [node name="global" type="Node2D"]
 script = ExtResource("1_t5b2j")
@@ -36,6 +45,7 @@ scale = Vector2(16, 16)
 texture = ExtResource("3_3tr3c")
 
 [node name="Pixel" type="Sprite2D" parent="."]
+visible = false
 texture = ExtResource("3_3tr3c")
 
 [node name="Polygon2D" type="Polygon2D" parent="."]
@@ -73,3 +83,18 @@ offset_right = 40.0
 offset_bottom = 40.0
 texture = SubResource("GradientTexture2D_wut5y")
 expand_mode = 1
+
+[node name="Indicator" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Dot" type="TextureRect" parent="Indicator"]
+offset_left = -16.0
+offset_top = -16.0
+offset_right = 48.0
+offset_bottom = 48.0
+scale = Vector2(0.5, 0.5)
+texture = SubResource("GradientTexture2D_m3l3d")

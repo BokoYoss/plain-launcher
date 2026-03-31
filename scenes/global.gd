@@ -38,6 +38,7 @@ var scroll_offsets = {}
 var confirming = false
 
 var default_text_height = 128
+var scaled_text_height = 0
 var text_height = default_text_height
 var left_bound = 0.0
 var special_orientation_leftward = 23
@@ -121,9 +122,7 @@ var populate_filter = null
 
 var font = null
 
-var free_version = false
-
-var VERSION = "1.1"
+var VERSION = "25"
 
 # Cover art
 @onready var cover := $BoxContainer
@@ -433,7 +432,7 @@ func load_external_texture(path):
 	return image_texture
 
 func set_up_slots():
-	var scaled_text_height = default_text_height * Settings.get_setting(Settings.CFG_SCALER)
+	scaled_text_height = default_text_height * Settings.get_setting(Settings.CFG_SCALER)
 
 	var outline_thickness = Settings.get_setting(Settings.CFG_VISUAL_LETTER_OUTLINES)
 	left_bound = Settings.get_setting(Settings.CFG_LEFT_MARGIN)
@@ -469,7 +468,7 @@ func set_up_slots():
 	for i in range(visible_slots.size()):
 		var slot = visible_slots[i]
 		slot.queue_free()
-		fav_indicators[i].queue_free()
+		#fav_indicators[i].queue_free()
 	visible_slots.clear()
 	fav_indicators.clear()
 
@@ -484,14 +483,16 @@ func set_up_slots():
 		visible_slots.append(new_slot)
 		new_slot.add_theme_constant_override("outline_size", outline_thickness)
 		new_slot.position.y = (slot_start) + i * (scaled_text_height * 0.5)
-		var fav_indicator = $Pixel.duplicate()
-		new_slot.add_child.call_deferred(fav_indicator)
-		fav_indicator.position.x = -left_bound / 2.0
-		if new_slot.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT:
-			fav_indicator.position.x = new_slot.size.x + left_bound / 2.0
+		#var fav_indicator = $Indicator.duplicate()
+		#fav_indicator.visible = true
+		#new_slot.add_child.call_deferred(fav_indicator)
+		#fav_indicator.position.x = -scaled_text_height / 4.0
+		#if new_slot.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT:
+		#	fav_indicator.position.x = new_slot.size.x + left_bound / 2.0
 		slot_size = new_slot.size
-		fav_indicator.position.y = text_height * Settings.get_setting(Settings.CFG_SCALER) / 4.0
-		fav_indicators.append(fav_indicator)
+		#fav_indicator.scale = Vector2.ONE * Settings.get_setting(Settings.CFG_SCALER)
+		#fav_indicator.position.y = scaled_text_height / 4.0 - 2.0
+		#fav_indicators.append(fav_indicator)
 
 	message.visible = false
 	var custom_font = Settings.get_setting(Settings.CFG_FONT)
@@ -680,7 +681,7 @@ func clear_visible(title_text="", custom_options=[]):
 	for i in range(visible_slots.size()):
 		var visible_slot = visible_slots[i]
 		visible_slot.text = ""
-		fav_indicators[i].visible = false
+		#fav_indicators[i].visible = false
 	update_title(title_text)
 
 	if not custom_options.is_empty():
@@ -763,9 +764,12 @@ func highlight_selection(next_selection=option_selection):
 		var slot = visible_slots[i]
 		slot.modulate.a = 0.3
 		var list_idx = scroll_offset + i
+		"""
 		var slot_is_fav = list_idx < option_list.size() and favorites_list.has(option_list[list_idx].absolute_path)
 		var slot_is_checked = list_idx < option_list.size() and option_list[list_idx].clean in selector_active
-		slot.position.x = slot_offset + (left_bound / 2.0 if (slot_is_fav or slot_is_checked) else 0.0)
+		if slot_is_fav or slot_is_checked:
+			slot.text = "•" + slot.text
+		"""
 		slot.size = slot_size
 		if scroll_offset + i < option_list.size() and HIDDEN_LIST.get(option_list[scroll_offset + i].absolute_path, false):
 			slot.modulate.a = 0.1
@@ -788,7 +792,7 @@ func highlight_selection(next_selection=option_selection):
 		return
 	if option_selection - scroll_offset < visible_slots.size():
 		visible_slots[option_selection-scroll_offset].modulate.a = 1.0
-		fav_indicators[option_selection-scroll_offset].modulate.a = 1.0
+		#fav_indicators[option_selection-scroll_offset].modulate.a = 1.0
 	else:
 		show_options(option_selection - visible_slots.size())
 	if post_draw_callback != null:
@@ -812,12 +816,14 @@ func show_options(offset=0):
 	for i in range(0, Global.visible_slots.size()):
 		if i+offset >= option_list.size():
 			set_slot(i, "")
-			fav_indicators[i].visible = false
+			#fav_indicators[i].visible = false
 			continue
 		set_slot(i, option_list[i+offset].clean)
 		var is_fav = favorites_list.has(option_list[i+offset].absolute_path)
-		fav_indicators[i].visible = is_fav
-		visible_slots[i].position.x = slot_offset + (left_bound / 2.0 if is_fav else 0.0)
+		var slot_is_checked = option_list[i+offset].clean in selector_active
+		if is_fav or slot_is_checked:
+			visible_slots[i].text = "•" + visible_slots[i].text
+		visible_slots[i].position.x = slot_offset
 	if post_draw_callback != null:
 		post_draw_callback.call()
 
@@ -936,12 +942,11 @@ func list_multiple_paths_combined(paths):
 		if dir == null:
 			print("FAILED TO ACCESS " + path)
 			continue
-		list_directory_contents(dir, false)
+		list_directory_contents(dir, false, [], false, false)
 	Global.option_list.sort_custom(func(a,b): return a.filename.to_lower() < b.filename.to_lower())
 	restore_position()
-	highlight_selection()
 
-func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], skip_empty_dirs=false):
+func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], skip_empty_dirs=false, refresh_at_end=true):
 	if directory == null:
 		return
 	print("LIST CONTENTS " + directory.get_current_dir() + " DIRS_ONLY: " + str(dirs_only))
@@ -1001,8 +1006,9 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], s
 			continue
 		Global.option_list.append(opt)
 	option_selection = 0
-	restore_position()
-	highlight_selection()
+	if refresh_at_end:
+		restore_position()
+		highlight_selection()
 
 func move_down():
 	if not can_scroll:
@@ -1186,7 +1192,8 @@ func restore_position():
 	if get_stored_cursor_position() != null:
 		while option_selection < option_list.size():
 			if get_selected().absolute_path == get_stored_cursor_position():
-				scroll_offset = get_stored_scroll_offset()
+				var stored_scroll = get_stored_scroll_offset()
+				scroll_offset = min(stored_scroll, option_selection) if stored_scroll != null else option_selection
 				break
 			option_selection += 1
 			scroll_offset = max(0, option_selection - visible_slots.size())
@@ -1365,10 +1372,12 @@ func _physics_process(delta):
 			var scrolled = false
 			while touch_scroll_accum > text_height:
 				move_down()
+				vibrate(20)
 				touch_scroll_accum -= text_height
 				scrolled = true
 			while touch_scroll_accum < -text_height:
 				move_up()
+				vibrate(20)
 				touch_scroll_accum += text_height
 				scrolled = true
 			if scrolled:

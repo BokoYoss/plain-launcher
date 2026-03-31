@@ -4,15 +4,9 @@ var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 var launcher
 var _return_subscreen: String = ""
 
-var version_label: Label = null
-
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	Global.fade.modulate.a = 1.0
-	version_label = Global.message.duplicate()
-	add_child(version_label)
-	version_label.size = Vector2(Global.window_width * 0.5, Global.text_height)
-	version_label.position = Vector2(Global.window_width * 0.5, Global.window_height - Global.text_height - 8)
 	_show_settings_main()
 
 	Global.post_scroll_callback = Callable(self, "on_scroll")
@@ -30,16 +24,12 @@ func _ready():
 	if Global.setting_subscreen == "system":
 		show_system_settings()
 		Global.setting_subscreen = null
+	Global.show_message("v" + Global.VERSION)
 	Global.refresh_art()
 
 func _show_settings_main():
 	Global.clear_visible("SETTINGS", ["General", "Visuals", "Controls", "Collections", "Scraper", "Launchers", "Credits", "Quit"])
 	Global.post_scroll_callback = Callable(self, "on_scroll")
-	version_label.text = "v" + Global.VERSION
-	version_label.visible = true
-
-func _hide_version_label():
-	version_label.visible = false
 
 const VISUAL_SUBSCREENS = ["visual settings", "cover art", "text", "colors", "layout"]
 
@@ -141,6 +131,7 @@ func show_example_art():
 	while (new_rand_art == $ExampleArt.frame):
 		new_rand_art = randi() % 12
 	Global.img_texture_override = $ExampleArt.get_sprite_frames().get_frame_texture("default", new_rand_art)
+	Global.refresh_art()
 
 func on_scroll():
 	if Global.title.text.to_lower() in VISUAL_SUBSCREENS:
@@ -171,7 +162,6 @@ func show_system_settings():
 func _process(_delta):
 	if Global.confirm_pressed():
 		Global.store_position()
-		_hide_version_label()
 		var selected = Global.get_selected().clean.to_lower()
 
 		# Top-level

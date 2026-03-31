@@ -1,5 +1,5 @@
 {
-	"EMULATOR": ["retroarch", "retroarch64", "retroarch32"],
+	"EMULATOR": ["retroarch", "retroarch64", "retroarch32", "myboy"],
 	"CORE": ["gpsp", "mgba"],
 	"EXTENSIONS": ["gba", "zip", "7z"]
 }

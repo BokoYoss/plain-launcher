@@ -1,5 +1,5 @@
 {
-	"EMULATOR": ["retroarch", "retroarch64", "retroarch32"],
+	"EMULATOR": ["retroarch", "retroarch64", "retroarch32", "myoldboy"],
 	"CORE": ["gambatte"],
 	"EXTENSIONS": ["gb", "zip", "7z"]
 }
