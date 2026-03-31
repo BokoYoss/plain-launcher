@@ -200,8 +200,8 @@ func _process(delta):
 		if current_dir != null and current_dir.dir_exists(selected_dir):
 			populate_files(current_dir.get_current_dir() + "/" + selected_dir, true)
 	elif Global.back_pressed():
-		if (Global.title.text.to_lower() == "select storage"):
-			Navigator.go_to_main()
+		if Global.title.text.to_lower() == "select primary storage":
+			Navigator.pop()
 			return
 		storage_select()
 	elif Input.is_action_just_pressed("start"):

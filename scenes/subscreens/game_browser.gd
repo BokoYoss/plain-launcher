@@ -36,11 +36,30 @@ func filter_item(item):
 		return false
 	return item.filename.get_extension() not in system_settings.get("EXTENSIONS")
 
+func populate_favorites():
+	Global.clear_visible("FAVORITES")
+	for entry in Global.get_favorites_entries():
+		var opt = option.new()
+		opt.clean = entry.get("name", "")
+		opt.filename = entry.get("filename", "")
+		opt.absolute_path = entry.get("path", "")
+		opt.system = entry.get("system", "")
+		opt.favorite_dir = true
+		Global.option_list.append(opt)
+	Global.set_up_slots()
+	Global.restore_position()
+	Global.highlight_selection()
+	Global.refresh_art()
+
 func populate_content(msg_override=null):
 	print("GAMES BROWSER " + Global.subscreen)
 
 	if Global.subscreen == "RECENT":
 		populate_recent()
+		return
+
+	if Global.subscreen == "FAVORITES":
+		populate_favorites()
 		return
 
 	Global.clear_visible(Global.subscreen)
@@ -87,7 +106,7 @@ func populate_recent():
 func _on_resume():
 	Global.no_alias = false
 	if Global.subscreen == "FAVORITES":
-		populate_content()
+		populate_favorites()
 		return
 	if Global.subscreen != "RECENT":
 		Global.populate_filter = Callable(self, "filter_item")
@@ -131,12 +150,11 @@ func _process(delta):
 			return
 		var game_path = selected.absolute_path
 		if Global.get_selected().favorite_dir:
-			game_path = FileAccess.get_file_as_string(selected.absolute_path)
-
 			var system_in_question = selected.system
 			print("Using FAVORITES launch with " + system_in_question + " path: " + game_path)
 
 			if system_in_question == "ANDROID" or system_in_question == "EMULATORS":
+				Global.log_recent(game_path, system_in_question, selected.clean)
 				AndroidInterface.launch_package(game_path)
 				return
 

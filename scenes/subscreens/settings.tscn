@@ -64,3 +64,6 @@ script = ExtResource("1_adwuw")
 [node name="ExampleArt" type="AnimatedSprite2D" parent="."]
 visible = false
 sprite_frames = SubResource("SpriteFrames_6qqvq")
+
+[node name="VersionLabel" type="Label" parent="."]
+horizontal_alignment = 2

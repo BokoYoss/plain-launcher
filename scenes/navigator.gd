@@ -49,9 +49,12 @@ func go_to_main():
 	for entry in _stack:
 		entry.node.queue_free()
 	_stack.clear()
-	if not Global.root_path or not Global.version_matches():
+	if not Global.root_path:
 		push("confirm_set")
 	else:
+		if not Global.version_matches():
+			Global.migrate_configs()
+			Global.store_version()
 		push("system_browser")
 
 func go_to_special():

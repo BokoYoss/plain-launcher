@@ -88,11 +88,21 @@ var special_item = null
 var touch_enabled = true
 var touch_position = null
 var touch_start_position = null
-var previous_touch_position = null
 var touch_start_time = -1
 var touch_check_time = -1
+var touch_velocity: float = 0.0
+var touch_scroll_accum: float = 0.0
+var touch_is_scrolling: bool = false
+var touch_momentum: float = 0.0
+var previous_touch_position = null
 var pending_special = false
 var pending_back = false
+
+# Generic checkbox selector state
+var selector_title: String = ""
+var selector_items: Array = []
+var selector_active: Array = []
+var selector_multi: bool = true
 var waiting_for_confirm_release: bool = false
 var control_tilt: Vector2 = Vector2.ZERO
 var tilt_ratio = 0
@@ -205,6 +215,127 @@ func store_version():
 	if version_file == null:
 		return
 	version_file.store_string(VERSION)
+
+func reimport_all_configs():
+	if root_path == "" or root_path == null:
+		return
+	const BUNDLED_BASE = "res://launcher_configs/"
+	const SKIP_EXTENSIONS = [".png", ".import", ".ttf", ".otf"]
+	var base_dir = DirAccess.open(BUNDLED_BASE)
+	if base_dir == null:
+		return
+	for system in base_dir.get_directories():
+		var system_dir = DirAccess.open(BUNDLED_BASE + system)
+		if system_dir == null:
+			continue
+		system_dir.list_dir_begin()
+		var file = system_dir.get_next()
+		while file != "":
+			if not system_dir.current_is_dir():
+				var skip = false
+				for ext in SKIP_EXTENSIONS:
+					if file.ends_with(ext):
+						skip = true
+						break
+				if not skip:
+					var src = BUNDLED_BASE + system + "/" + file
+					var dst_dir = root_path + PATH_CONFIG + system + "/"
+					var dst = dst_dir + file
+					DirAccess.make_dir_recursive_absolute(dst_dir)
+					var content = FileAccess.get_file_as_string(src)
+					var f = FileAccess.open(dst, FileAccess.WRITE)
+					if f:
+						f.store_string(content)
+						f.close()
+			file = system_dir.get_next()
+	# Copy COMMON files (intents.json, alias.json, lists.json)
+	var common_dir = DirAccess.open(BUNDLED_BASE + "COMMON")
+	if common_dir:
+		common_dir.list_dir_begin()
+		var file = common_dir.get_next()
+		while file != "":
+			if not common_dir.current_is_dir():
+				var skip = false
+				for ext in SKIP_EXTENSIONS:
+					if file.ends_with(ext):
+						skip = true
+						break
+				if not skip:
+					var src = BUNDLED_BASE + "COMMON/" + file
+					var dst_dir = root_path + PATH_CONFIG + "COMMON/"
+					DirAccess.make_dir_recursive_absolute(dst_dir)
+					var content = FileAccess.get_file_as_string(src)
+					var f = FileAccess.open(dst_dir + file, FileAccess.WRITE)
+					if f:
+						f.store_string(content)
+						f.close()
+			file = common_dir.get_next()
+	print("reimport_all_configs: done")
+
+func migrate_configs():
+	if root_path == "" or root_path == null:
+		return
+	_migrate_intents()
+	_migrate_choices()
+
+func _migrate_intents():
+	var bundled_path = "res://launcher_configs/COMMON/intents.json"
+	var user_path = root_path + PATH_CONFIG + "COMMON/intents.json"
+	var bundled = JSON.parse_string(FileAccess.get_file_as_string(bundled_path))
+	if bundled == null:
+		return
+	var user_intents = {}
+	if FileAccess.file_exists(user_path):
+		var parsed = JSON.parse_string(FileAccess.get_file_as_string(user_path))
+		if parsed != null:
+			user_intents = parsed
+	var changed = not FileAccess.file_exists(user_path)
+	for key in bundled.keys():
+		if not user_intents.has(key):
+			user_intents[key] = bundled[key]
+			changed = true
+	if changed:
+		DirAccess.make_dir_recursive_absolute(user_path.get_base_dir())
+		var f = FileAccess.open(user_path, FileAccess.WRITE)
+		if f:
+			f.store_string(JSON.stringify(user_intents, "\t"))
+			f.close()
+
+func _migrate_choices():
+	var bundled_base = "res://launcher_configs/"
+	var dir = DirAccess.open(bundled_base)
+	if dir == null:
+		return
+	for system in dir.get_directories():
+		var bundled_path = bundled_base + system + "/choices.json"
+		if not FileAccess.file_exists(bundled_path):
+			continue
+		var user_path = root_path + PATH_CONFIG + system + "/choices.json"
+		var bundled = JSON.parse_string(FileAccess.get_file_as_string(bundled_path))
+		if bundled == null:
+			continue
+		var user_choices = {}
+		if FileAccess.file_exists(user_path):
+			var parsed = JSON.parse_string(FileAccess.get_file_as_string(user_path))
+			if parsed != null:
+				user_choices = parsed
+		var changed = not FileAccess.file_exists(user_path)
+		for key in bundled.keys():
+			if key.to_upper() == "EXTENSIONS":
+				continue  # user manages extensions manually
+			var bundled_arr: Array = bundled[key]
+			var user_arr: Array = user_choices.get(key, [])
+			for item in bundled_arr:
+				if item not in user_arr:
+					user_arr.append(item)
+					changed = true
+			user_choices[key] = user_arr
+		if changed:
+			DirAccess.make_dir_recursive_absolute(user_path.get_base_dir())
+			var f = FileAccess.open(user_path, FileAccess.WRITE)
+			if f:
+				f.store_string(JSON.stringify(user_choices, "\t"))
+				f.close()
 
 const RECENT_MAX = 50
 
@@ -464,8 +595,6 @@ func cycle_line_length():
 	cycle_options(Settings.CFG_TEXT_LENGTH, [0.25, 0.4, 0.5, 0.6, 0.75, 1.0])
 	set_up_slots()
 
-func toggle_touch_visible():
-	Settings.store(Settings.CFG_TOUCH_VISIBLE, !Settings.get_setting(Settings.CFG_TOUCH_VISIBLE))
 
 func toggle_text_outline():
 	var outline_thickness = 8
@@ -490,9 +619,7 @@ func show_message(msg, priority=false):
 	print("showing message: " + msg)
 	message.text = ALIAS_MAP.get(msg, msg)
 	message.uppercase = Settings.get_setting(Settings.CFG_CAPS_LOCK)
-	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	message.position.x = Global.window_width - 2.0
-	message.position.y = Global.window_height - 2.0
+	message.visible = true
 	message.modulate.a = 1.0
 
 func update_title(new_title):
@@ -637,7 +764,8 @@ func highlight_selection(next_selection=option_selection):
 		slot.modulate.a = 0.3
 		var list_idx = scroll_offset + i
 		var slot_is_fav = list_idx < option_list.size() and favorites_list.has(option_list[list_idx].absolute_path)
-		slot.position.x = slot_offset + (left_bound / 2.0 if slot_is_fav else 0.0)
+		var slot_is_checked = list_idx < option_list.size() and option_list[list_idx].clean in selector_active
+		slot.position.x = slot_offset + (left_bound / 2.0 if (slot_is_fav or slot_is_checked) else 0.0)
 		slot.size = slot_size
 		if scroll_offset + i < option_list.size() and HIDDEN_LIST.get(option_list[scroll_offset + i].absolute_path, false):
 			slot.modulate.a = 0.1
@@ -693,52 +821,67 @@ func show_options(offset=0):
 	if post_draw_callback != null:
 		post_draw_callback.call()
 
+func _favorites_json_path() -> String:
+	return root_path + PATH_GAMES + "FAVORITES/favorites.json"
+
+func _load_favorites_json() -> Array:
+	var path = _favorites_json_path()
+	if not FileAccess.file_exists(path):
+		return []
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return parsed if parsed is Array else []
+
+func _save_favorites_json(entries: Array):
+	var fav_dir_path = root_path + PATH_GAMES + "FAVORITES"
+	if not DirAccess.dir_exists_absolute(fav_dir_path):
+		DirAccess.make_dir_recursive_absolute(fav_dir_path)
+	var f = FileAccess.open(_favorites_json_path(), FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(entries, "\t"))
+		f.close()
+
+func get_favorites_entries() -> Array:
+	return _load_favorites_json()
+
 func populate_favorites():
-	var fav_dir_path = Global.root_path + Global.PATH_GAMES + "FAVORITES"
-	var fav_dir = DirAccess.open(fav_dir_path)
-	if not fav_dir:
-		return
 	favorites_list.clear()
-	fav_dir.list_dir_begin()
-	var fave = fav_dir.get_next()
-	while fave != "":
-		var fave_contents = FileAccess.get_file_as_string(fav_dir.get_current_dir() + "/" + fave)
-		favorites_list[fave_contents] = true
-		fave = fav_dir.get_next()
+	for entry in _load_favorites_json():
+		favorites_list[entry.get("path", "")] = true
 	Global.show_options(Global.scroll_offset)
 
-func favorite_name(system, selected_name):
-	return "[" + system + "] " + selected_name + ".favorite"
-
 func add_favorite(item):
-	Global.populate_favorites()
 	if item.favorite_dir or Global.favorites_list.has(item.absolute_path):
 		return
-	var fav_dir_path = Global.root_path + Global.PATH_GAMES + "FAVORITES"
-	var fav_dir = DirAccess.open(fav_dir_path)
-	if not fav_dir:
-		DirAccess.make_dir_recursive_absolute(fav_dir_path)
-		fav_dir = DirAccess.open(fav_dir_path)
-	var selected = item.clean
-	var fav_file = FileAccess.open(fav_dir.get_current_dir() + "/" + favorite_name(item.system, selected), FileAccess.WRITE)
-	print("ADDING FAVORITE " + fav_file.get_path_absolute().get_basename())
-	fav_file.store_string(item.absolute_path)
-	fav_file.close()
+	var entries = _load_favorites_json()
+	entries.append({
+		"name": item.clean,
+		"system": item.system,
+		"path": item.absolute_path,
+		"filename": item.filename,
+	})
+	_save_favorites_json(entries)
+	print("ADDING FAVORITE " + item.clean)
 	Global.populate_favorites()
 
+func clear_all_favorites():
+	var path = _favorites_json_path()
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	favorites_list.clear()
+	print("Cleared all favorites")
+
+func clear_recent_history():
+	var recent_path = root_path + "/Config/COMMON/recent.json"
+	if FileAccess.file_exists(recent_path):
+		DirAccess.remove_absolute(recent_path)
+	print("Cleared recent history")
+
 func remove_favorite(item):
-	Global.populate_favorites()
-	var fav_dir_path = Global.root_path + Global.PATH_GAMES + "FAVORITES"
-	var fav_dir = DirAccess.open(fav_dir_path)
-	if not fav_dir:
-		return
-	if item.favorite_dir:
-		print("REMOVING FAVORITE " + item.filename)
-		fav_dir.remove(item.filename)
-	else:
-		var fav_name = favorite_name(item.system, item.clean)
-		print("REMOVING FAVORITE " + fav_name)
-		fav_dir.remove(fav_name)
+	var target_path = item.absolute_path
+	var entries = _load_favorites_json()
+	entries = entries.filter(func(e): return e.get("path", "") != target_path)
+	_save_favorites_json(entries)
+	print("REMOVING FAVORITE " + target_path)
 	Global.store_position()
 	Global.populate_favorites()
 
@@ -750,7 +893,7 @@ func toggle_favorite(item):
 		Global.show_message("Removed from FAVORITES", true)
 	else:
 		add_favorite(item)
-	highlight_selection(0)
+	highlight_selection()
 	show_options(scroll_offset)
 
 func hide_item():
@@ -794,7 +937,7 @@ func list_multiple_paths_combined(paths):
 			print("FAILED TO ACCESS " + path)
 			continue
 		list_directory_contents(dir, false)
-	Global.option_list.sort_custom(func(a,b): return a.filename < b.filename)
+	Global.option_list.sort_custom(func(a,b): return a.filename.to_lower() < b.filename.to_lower())
 	restore_position()
 	highlight_selection()
 
@@ -822,7 +965,7 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], s
 					file_names.append(file_name)
 			file_name = directory.get_next()
 		directory.list_dir_end()
-		file_names.sort()
+		file_names.sort_custom(func(a, b): return a.to_lower() < b.to_lower())
 	else:
 		file_names = directory.get_files()
 		system = Global.subscreen
@@ -1148,23 +1291,13 @@ func _physics_process(delta):
 					move_up()
 					on_scroll()
 		tilt_ratio = new_tilt_ratio
-	else:
-		var touch_diff = touch_position - touch_start_position
-		var diff_y = (touch_position.y - touch_start_position.y)
-
-		control_tilt = Vector2(touch_diff.x / (window_width / 8.0), touch_diff.y / (window_height / 8.0))
-		tilt_ratio = max(0.1, (Vector2(window_width / 4.0, window_height / 4.0).length() - touch_diff.length()) / Vector2(window_width / 4.0, window_height / 4.0).length())
-		TOUCH_CURRENT.global_position = touch_position
-		TOUCH_BRIDGE.global_position = (TOUCH_CURRENT.global_position + TOUCH_START.global_position) / 2.0
-		TOUCH_BRIDGE.scale = Vector2(touch_diff.length(), (tilt_ratio * TOUCH_START.scale.x))
-		TOUCH_BRIDGE.look_at(TOUCH_CURRENT.global_position)
 
 	if cursor_locked():
 		return
 
 	if (confirm_swapped and Input.is_action_just_pressed("back")) or (!confirm_swapped and Input.is_action_just_pressed("select")):
 		confirm_hold_time = Time.get_ticks_msec()
-	if !confirm_held() and confirm_hold_time != null:
+	if !confirm_held() and touch_position == null and confirm_hold_time != null:
 		if pending_special:
 			Navigator.go_to_special()
 			return
@@ -1178,7 +1311,7 @@ func _physics_process(delta):
 	if option_selection == 0 and scroll_offset != 0:
 		scroll_offset = 0
 	var curr_slot = visible_slots[option_selection - scroll_offset]
-	if special_allowed() and (control_tilt.x > 0.5 or (confirm_hold_time != null and Time.get_ticks_msec() - confirm_hold_time > 500)):
+	if special_allowed() and ((touch_position == null and control_tilt.x > 0.5) or (confirm_hold_time != null and Time.get_ticks_msec() - confirm_hold_time > 500)):
 		if curr_slot.scale.x < 1.2:
 			curr_slot.scale *= 1.1
 			curr_slot.size /= 1.1
@@ -1205,42 +1338,60 @@ func _physics_process(delta):
 		Navigator.go_to_special()
 		return
 
-	if control_tilt.x < -0.5:
-		if title.position.x > 0:
-			title.position.x = lerp(float(title.position.x), 0.0, 0.3)
-			if title.position.x > left_bound / 2.0:
-				pending_back = false
-			else:
-				if !pending_back:
-					vibrate(100)
-				pending_back = true
-	elif title.position.x < left_bound - 1:
-		title.position.x = lerp(float(title.position.x), left_bound, 0.2)
-	else:
-		title.position.x = left_bound
-		pending_back = false
-	if pending_back and ((confirm_swapped and Input.is_action_just_released("back") or !confirm_swapped and Input.is_action_just_released("select"))):
-		touch_check_time = Time.get_ticks_msec() + 1000
-		press_back()
-		return
+	if touch_position == null:
+		if control_tilt.x < -0.5:
+			if title.position.x > 0:
+				title.position.x = lerp(float(title.position.x), 0.0, 0.3)
+				if title.position.x > left_bound / 2.0:
+					pending_back = false
+				else:
+					if !pending_back:
+						vibrate(100)
+					pending_back = true
+		elif title.position.x < left_bound - 1:
+			title.position.x = lerp(float(title.position.x), left_bound, 0.2)
+		else:
+			title.position.x = left_bound
+			pending_back = false
+		if pending_back and ((confirm_swapped and Input.is_action_just_released("back") or !confirm_swapped and Input.is_action_just_released("select"))):
+			touch_check_time = Time.get_ticks_msec() + 1000
+			press_back()
+			return
 
-	if Time.get_ticks_msec() > touch_check_time:
-		if not pending_back and not pending_special:
-			var moving = false
-			if control_tilt.y < -0.1:
-				moving = true
-				vibrate(40)
-				move_up()
-			if control_tilt.y > 0.1:
-				moving = true
-				vibrate(40)
+	if touch_position == null:
+		if abs(touch_momentum) > 0.5 and not cursor_locked():
+			var scroll_dir = -1.0 if Settings.get_setting(Settings.CFG_TOUCH_INVERT_SCROLL) else 1.0
+			touch_scroll_accum += touch_momentum * scroll_dir
+			var scrolled = false
+			while touch_scroll_accum > text_height:
 				move_down()
-			if moving:
+				touch_scroll_accum -= text_height
+				scrolled = true
+			while touch_scroll_accum < -text_height:
+				move_up()
+				touch_scroll_accum += text_height
+				scrolled = true
+			if scrolled:
 				on_scroll()
-				pending_special = false
-				touch_check_time = Time.get_ticks_msec() + tilt_ratio * 200
-	else:
-		TOUCH_POINTS.modulate = TOUCH_POINTS.modulate.lerp(Settings.get_setting(Settings.CFG_FG_COLOR), 0.05)
+			touch_momentum *= 0.88
+			if abs(touch_momentum) < 1.0:
+				touch_momentum = 0.0
+				touch_scroll_accum = 0.0
+		if Time.get_ticks_msec() > touch_check_time:
+			if not pending_back and not pending_special:
+				var moving = false
+				if control_tilt.y < -0.1:
+					moving = true
+					vibrate(40)
+					move_up()
+				if control_tilt.y > 0.1:
+					moving = true
+					vibrate(40)
+					move_down()
+				if moving:
+					on_scroll()
+					pending_special = false
+					touch_check_time = Time.get_ticks_msec() + tilt_ratio * 200
 
 ###############################################################
 #
@@ -1341,10 +1492,6 @@ func get_es_de_system(selected=Global.get_selected()):
 func get_image_path(selected=Global.get_selected()):
 	var system_in_question = selected.system
 	var game_title = selected.filename.get_basename()
-	if selected.favorite_dir:
-		var parts = selected.filename.split("] ")
-		game_title = parts[1].get_basename() if parts.size() > 1 else game_title
-		system_in_question = selected.filename.split("]")[0].replace("[", "")
 	if game_title == system_in_question:
 		if not Settings.get_setting(Settings.CFG_VISUAL_BUILTIN_SYSTEM_ART):
 			return str(Global.root_path + Global.PATH_IMAGES + system_in_question + "_custom.png").replace("//", "/")
@@ -1378,45 +1525,52 @@ func _input(event):
 		if event.pressed:
 			if Time.get_ticks_msec() - touch_start_time < 200:
 				return
-			if touch_position == null:
-				touch_start_time = Time.get_ticks_msec()
-				touch_check_time = touch_start_time + 800
-				previous_touch_position = event.position
-				touch_start_position = event.position
-				if Settings.get_setting(Settings.CFG_TOUCH_VISIBLE):
-					TOUCH_POINTS.visible = true
-				TOUCH_POINTS.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
-				TOUCH_START.global_position = touch_start_position
-				TOUCH_START.scale = Vector2(text_height / 4.0, text_height / 4.0)
-				TOUCH_CURRENT.scale = Vector2(text_height / 2.0, text_height / 2.0)
-				pending_special = false
-				pending_back = false
+			touch_start_time = Time.get_ticks_msec()
+			touch_start_position = event.position
 			touch_position = event.position
+			touch_velocity = 0.0
+			touch_scroll_accum = 0.0
+			touch_is_scrolling = false
+			touch_momentum = 0.0
+			pending_special = false
+			pending_back = false
+			confirm_hold_time = Time.get_ticks_msec()
 		else:
-			TOUCH_POINTS.visible = false
 			if touch_position == null or touch_start_position == null:
 				touch_position = null
 				touch_start_position = null
+				confirm_hold_time = null
 				return
 			var diff = touch_position - touch_start_position
-			if Time.get_ticks_msec() - touch_start_time < 800:
-				if diff.y < -window_height / 8.0:
-					vibrate(20)
-					move_up()
-					refresh_art()
-				elif diff.y > window_height / 8.0:
-					vibrate(20)
-					move_down()
-					refresh_art()
-				elif diff.length() < text_height:
-					press_confirm()
-			if pending_back or diff.x < -window_width / 8.0:
+			var elapsed = Time.get_ticks_msec() - touch_start_time
+			confirm_hold_time = null
+			if touch_is_scrolling:
+				touch_momentum = touch_velocity
+			elif diff.x < -window_width / 5.0 and abs(diff.x) > abs(diff.y) * 1.5:
 				press_back()
-				pending_back = false
-				touch_check_time = Time.get_ticks_msec() + 1000
-			if pending_special:
+			elif pending_special:
 				Navigator.go_to_special()
-				touch_check_time = Time.get_ticks_msec() + 1000
+			elif elapsed < 400 and diff.length() < text_height:
+				press_confirm()
 			touch_position = null
 	if event is InputEventScreenDrag:
+		if touch_position == null or touch_start_position == null:
+			return
+		var dy = event.position.y - touch_position.y
+		touch_velocity = touch_velocity * 0.6 + dy * 0.4
 		touch_position = event.position
+		var diff = touch_position - touch_start_position
+		if not touch_is_scrolling and abs(diff.y) > text_height * 0.4 and abs(diff.y) > abs(diff.x):
+			touch_is_scrolling = true
+			confirm_hold_time = null
+		if touch_is_scrolling and not cursor_locked():
+			var scroll_dir = -1.0 if Settings.get_setting(Settings.CFG_TOUCH_INVERT_SCROLL) else 1.0
+			touch_scroll_accum += dy * scroll_dir * (1.0 + abs(dy) / text_height)
+			while touch_scroll_accum > text_height:
+				move_down()
+				touch_scroll_accum -= text_height
+				on_scroll()
+			while touch_scroll_accum < -text_height:
+				move_up()
+				touch_scroll_accum += text_height
+				on_scroll()

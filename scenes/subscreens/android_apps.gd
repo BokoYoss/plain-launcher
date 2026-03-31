@@ -51,7 +51,7 @@ func populate_content(msg_override=null):
 	else:
 		app_list = AndroidInterface.get_app_list()
 		var options = app_list.keys()
-		options.sort()
+		options.sort_custom(func(a, b): return a.to_lower() < b.to_lower())
 		Global.clear_visible("ANDROID", options)
 		clean_options()
 	Global.set_up_slots()
@@ -96,7 +96,9 @@ func _process(delta):
 				return
 		else:
 			selected = Global.get_selected().filename
-			AndroidInterface.launch_package(app_list.get(selected))
+			var package = app_list.get(selected)
+			Global.log_recent(package, "ANDROID", selected)
+			AndroidInterface.launch_package(package)
 	if Global.back_pressed():
 		Navigator.go_to_main()
 	if Input.is_action_just_pressed("start"):

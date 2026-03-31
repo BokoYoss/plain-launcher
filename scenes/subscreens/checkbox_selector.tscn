@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://checkbox_sel_plain"]
+
+[ext_resource type="Script" uid="uid://chksel2plain0" path="res://scenes/subscreens/checkbox_selector.gd" id="1_chksel"]
+
+[node name="checkbox_selector" type="Node2D"]
+script = ExtResource("1_chksel")

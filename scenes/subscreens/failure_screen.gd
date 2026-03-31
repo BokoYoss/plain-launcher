@@ -35,9 +35,10 @@ func _process(delta):
 		return
 	if Global.confirm_pressed():
 		if Global.option_selection == 2:
+			var saved_game = Global.pending_game
 			Global.pending_game = ""
 			Global.can_scroll = true
-			launcher.launch_with_settings(Global.pending_launch)
+			launcher.launch_with_settings(Global.pending_launch, saved_game)
 	elif Global.back_pressed():
 		Global.can_scroll = true
 		Navigator.pop()

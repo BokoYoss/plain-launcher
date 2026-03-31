@@ -4,9 +4,15 @@ var ANDROID_LAUNCHER = preload("res://scenes/launcher_android.tscn")
 var launcher
 var _return_subscreen: String = ""
 
+var version_label: Label = null
+
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	Global.fade.modulate.a = 1.0
+	version_label = Global.message.duplicate()
+	add_child(version_label)
+	version_label.size = Vector2(Global.window_width * 0.5, Global.text_height)
+	version_label.position = Vector2(Global.window_width * 0.5, Global.window_height - Global.text_height - 8)
 	_show_settings_main()
 
 	Global.post_scroll_callback = Callable(self, "on_scroll")
@@ -27,10 +33,15 @@ func _ready():
 	Global.refresh_art()
 
 func _show_settings_main():
-	Global.clear_visible("SETTINGS", ["General", "Visuals", "Controls", "Scraper", "Launchers", "Credits", "Quit"])
+	Global.clear_visible("SETTINGS", ["General", "Visuals", "Controls", "Collections", "Scraper", "Launchers", "Credits", "Quit"])
 	Global.post_scroll_callback = Callable(self, "on_scroll")
+	version_label.text = "v" + Global.VERSION
+	version_label.visible = true
 
-const VISUAL_SUBSCREENS = ["visual settings", "cover art", "text", "colors", "layout", "list"]
+func _hide_version_label():
+	version_label.visible = false
+
+const VISUAL_SUBSCREENS = ["visual settings", "cover art", "text", "colors", "layout"]
 
 static func _toggle(value: bool) -> String:
 	return "Enabled" if value else "Disabled"
@@ -48,8 +59,8 @@ func _on_resume():
 		show_color_settings()
 	elif title == "layout":
 		show_layout_settings()
-	elif title == "list":
-		show_list_settings()
+	elif title == "collections":
+		show_collections_settings()
 	elif "control" in title:
 		show_control_settings()
 	elif "general" in title:
@@ -74,7 +85,6 @@ func show_visual_settings():
 		"Text",
 		"Colors",
 		"Layout",
-		"List",
 		"Restore all visual settings",
 	])
 	show_example_art()
@@ -121,11 +131,10 @@ func show_layout_settings():
 	])
 	show_example_art()
 
-func show_list_settings():
+func show_collections_settings():
 	var hide_toggle = "Show hidden: " + _toggle(Global.show_hidden)
 	var favs_first = "Favorites first: " + _toggle(Settings.get_setting(Settings.CFG_SHOW_FAVS_FIRST))
-	var touch_toggle = "Touch visuals: " + _toggle(Settings.get_setting(Settings.CFG_TOUCH_VISIBLE))
-	Global.clear_visible("List", [hide_toggle, favs_first, touch_toggle])
+	Global.clear_visible("Collections", [hide_toggle, favs_first, "Clear favorites", "Clear history"])
 
 func show_example_art():
 	var new_rand_art = randi() % 12
@@ -143,7 +152,8 @@ func on_scroll():
 
 func show_control_settings():
 	var vibe_setting = "Vibration: " + _toggle(Settings.get_setting(Settings.CFG_VIBRATE))
-	Global.clear_visible("Control Settings", ["Swap confirm button", vibe_setting])
+	var invert_scroll = "Invert touch scroll: " + _toggle(Settings.get_setting(Settings.CFG_TOUCH_INVERT_SCROLL))
+	Global.clear_visible("Control Settings", ["Swap confirm button", vibe_setting, invert_scroll])
 
 # ── General settings ─────────────────────────────────────────────────────────
 
@@ -154,13 +164,14 @@ func populate_minui_paths():
 		return
 
 func show_system_settings():
-	Global.clear_visible("General Settings", ["Select storage", "Restore all game settings", "Remove Plain Launcher directory"])
+	Global.clear_visible("General Settings", ["Select storage", "Reimport all configs", "Restore all game settings", "Remove Plain Launcher directory"])
 
 # ── Process ───────────────────────────────────────────────────────────────────
 
 func _process(_delta):
 	if Global.confirm_pressed():
 		Global.store_position()
+		_hide_version_label()
 		var selected = Global.get_selected().clean.to_lower()
 
 		# Top-level
@@ -174,6 +185,9 @@ func _process(_delta):
 			return
 		elif selected == "controls":
 			show_control_settings()
+			return
+		elif selected == "collections":
+			show_collections_settings()
 			return
 
 		# Visual sub-menus
@@ -189,8 +203,8 @@ func _process(_delta):
 		elif selected == "layout":
 			show_layout_settings()
 			return
-		elif selected == "list":
-			show_list_settings()
+		elif selected == "collections":
+			show_collections_settings()
 			return
 
 		# Cover art settings
@@ -279,18 +293,22 @@ func _process(_delta):
 			show_layout_settings()
 			return
 
-		# List settings
+		# Collections settings
 		elif "hidden" in selected:
 			Global.show_hidden = !Global.show_hidden
-			show_list_settings()
+			show_collections_settings()
 			return
 		elif "favorites first" in selected:
 			Settings.store(Settings.CFG_SHOW_FAVS_FIRST, !Settings.get_setting(Settings.CFG_SHOW_FAVS_FIRST))
-			show_list_settings()
+			show_collections_settings()
 			return
-		elif "touch visuals" in selected:
-			Global.toggle_touch_visible()
-			show_list_settings()
+		elif selected == "clear favorites":
+			Global.clear_all_favorites()
+			show_collections_settings()
+			return
+		elif selected == "clear history":
+			Global.clear_recent_history()
+			show_collections_settings()
 			return
 
 		# Control settings
@@ -301,10 +319,21 @@ func _process(_delta):
 			Global.toggle_vibrate()
 			show_control_settings()
 			return
+		elif "invert touch scroll" in selected:
+			Settings.store(Settings.CFG_TOUCH_INVERT_SCROLL, !Settings.get_setting(Settings.CFG_TOUCH_INVERT_SCROLL))
+			show_control_settings()
+			return
 
 		# General settings
 		elif "storage" in selected:
 			Navigator.push("file_browser")
+		elif "reimport all configs" in selected:
+			Global.clear_visible("Overwrite all configs with bundled defaults?", ["Overwrite", "Cancel"])
+			return
+		elif "overwrite" in selected:
+			Global.reimport_all_configs()
+			Global.clear_visible("Configs reimported.", ["OK"])
+			return
 		elif "restore all game settings" in selected:
 			Global.clear_all_settings()
 			Global.clear_visible("Restored settings to default.", ["OK"])

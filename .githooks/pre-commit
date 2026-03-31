@@ -1,0 +1,22 @@
+#!/bin/sh
+# Auto-update VERSION in global.gd and version/code in export_presets.cfg
+# using git commit count. Activate with: git config core.hooksPath .githooks
+
+COUNT=$(git rev-list --count HEAD 2>/dev/null)
+if [ -z "$COUNT" ]; then
+  echo "pre-commit: could not get git commit count, skipping version update"
+  exit 0
+fi
+
+# +1 because this commit hasn't been counted yet
+NEW_VERSION=$((COUNT + 1))
+
+# Update GDScript VERSION constant
+sed -i "s/^var VERSION = .*/var VERSION = \"$NEW_VERSION\"/" scenes/global.gd
+
+# Update Godot export preset version code
+sed -i "s/^version\/code=.*/version\/code=$NEW_VERSION/" export_presets.cfg
+
+git add scenes/global.gd export_presets.cfg
+
+echo "pre-commit: version set to $NEW_VERSION"

@@ -15,6 +15,20 @@ var system_settings = null
 var system_settings_options = null
 var settings_screen = false
 var pending_setting = null
+var _selector_mode: String = ""
+var _key_display_map: Dictionary = {}
+
+const _SETTING_DISPLAY = {
+	"EMULATOR": ["Select emulator", "Select default emulator"],
+	"CORE": ["Select core", "Select default core"],
+	"EXTENSIONS": ["File extensions", "File extensions"],
+}
+
+func _setting_label(key: String) -> String:
+	var variants = _SETTING_DISPLAY.get(key)
+	if variants:
+		return variants[1 if Global.special_item.is_dir else 0]
+	return key
 
 const download_dir_path = "/storage/emulated/0/Download"
 
@@ -43,7 +57,30 @@ func _ready():
 	populate_content()
 
 func _on_resume():
+	if _selector_mode != "":
+		_apply_selector_result()
 	populate_content()
+
+func _apply_selector_result():
+	match _selector_mode:
+		"extensions":
+			system_settings["EXTENSIONS"] = Global.selector_active.duplicate()
+			write_settings_to_disk()
+		"emulators":
+			var choices_path = Global.root_path + Global.PATH_CONFIG + Global.special_item.system + "/choices.json"
+			var choices = {}
+			if FileAccess.file_exists(choices_path):
+				choices = JSON.parse_string(FileAccess.get_file_as_string(choices_path))
+				if choices == null: choices = {}
+			choices["EMULATOR"] = Global.selector_active.duplicate()
+			var f = FileAccess.open(choices_path, FileAccess.WRITE)
+			if f:
+				f.store_string(JSON.stringify(choices, "\t"))
+				f.close()
+		"EMULATOR", "CORE":
+			if not Global.selector_active.is_empty():
+				system_settings[_selector_mode] = Global.selector_active[0]
+	_selector_mode = ""
 
 func get_storage_selection(path):
 	print("Got alt art path: " + path)
@@ -70,10 +107,20 @@ func populate_content():
 	settings.append(hide_toggle)
 
 	if not system_settings.is_empty():
-		settings.append_array(system_settings.keys())
+		_key_display_map = {}
+		var current_emulator = system_settings.get("EMULATOR", "")
+		var is_retroarch = current_emulator.to_lower().begins_with("retroarch")
+		for key in system_settings.keys():
+			if key == "EXTENSIONS" and not Global.special_item.is_dir:
+				continue
+			if key == "CORE" and not is_retroarch:
+				continue
+			var label = _setting_label(key)
+			_key_display_map[label.to_lower()] = key
+			settings.append(label)
 		if Global.special_item.is_dir:
 			settings.append("Add emulators")
-		settings.append("RESTORE DEFAULTS")
+		settings.append("Restore defaults")
 	if Global.special_item.system == "ANDROID":
 		settings.append("Open app settings")
 	if Global.special_item.is_dir:
@@ -127,7 +174,7 @@ func game_settings_match_default():
 	var systemwide = Global.get_systemwide_settings(Global.special_item.system)
 	for key in systemwide.keys():
 		if system_settings.get(key, null) != systemwide.get(key):
-			print("FOUND CUSTOM SETTING FOR " + key + " GAME: " + str(system_settings.get(key, null)) + " SYSTEM: " + systemwide.get(key))
+			print("FOUND CUSTOM SETTING FOR " + key + " GAME: " + str(system_settings.get(key, null)) + " SYSTEM: " + str(systemwide.get(key)))
 			return false
 	return true
 
@@ -186,34 +233,60 @@ func _process(delta):
 				return
 			AndroidInterface.look_for_art_web(Global.special_item.clean, Global.special_item.system, selected)
 			return
-		elif selected == "extensions":
-			Navigator.push("extension_selector")
-			return
 		elif selected == "add emulators":
-			Navigator.push("emulator_selector")
+			var intents_path = Global.root_path + Global.PATH_CONFIG + "COMMON/intents.json"
+			const BUNDLED_INTENTS = "res://launcher_configs/COMMON/intents.json"
+			var intents_raw = FileAccess.get_file_as_string(intents_path) if FileAccess.file_exists(intents_path) else FileAccess.get_file_as_string(BUNDLED_INTENTS)
+			var intents = JSON.parse_string(intents_raw)
+			var all_emulators: Array = intents.keys() if intents else []
+			all_emulators.sort()
+			var choices_path = Global.root_path + Global.PATH_CONFIG + Global.special_item.system + "/choices.json"
+			var choices = {}
+			if FileAccess.file_exists(choices_path):
+				var c = JSON.parse_string(FileAccess.get_file_as_string(choices_path))
+				if c != null: choices = c
+			Global.selector_title = Global.special_item.system + " Emulators"
+			Global.selector_items = all_emulators
+			Global.selector_active = choices.get("EMULATOR", []).duplicate()
+			Global.selector_multi = true
+			_selector_mode = "emulators"
+			Navigator.push("checkbox_selector")
 			return
 		elif "restore defaults" in selected:
 			system_settings = null
 			write_settings_to_disk()
 			Global.clear_visible("Options restored.", ["OK"])
 			return
-		elif pending_setting == null:
-			selected = selected.to_upper()
-			var current_value = system_settings.get(selected)
-			print("CURRENT SETTING KEY: " + selected + " VALUE: " + system_settings.get(selected))
-			var display_options = []
+		elif pending_setting == null and _key_display_map.has(selected):
+			var key = _key_display_map[selected]
+			var current_value = system_settings.get(key)
+			print("CURRENT SETTING KEY: " + key + " VALUE: " + str(current_value))
 			system_settings_options = Global.get_system_settings_options(Global.special_item.system)
 			if system_settings_options == null:
 				print("Options not found")
 				return
-			if system_settings_options != null and system_settings_options.has(selected):
-				display_options = system_settings_options.has(selected)
-				print(display_options)
-			pending_setting = selected
-			Global.clear_visible(Global.special_item.clean + " " + pending_setting, system_settings_options.get(selected, []))
-			for i in range(0, system_settings_options.get(selected, []).size()):
-				var suboption = Global.option_list[i]
-				if suboption.filename == current_value:
+			var options = system_settings_options.get(key, [])
+			if key == "EXTENSIONS":
+				var choices = Global.get_system_settings_options(Global.special_item.system)
+				Global.selector_title = Global.special_item.system + " File Extensions"
+				Global.selector_items = choices.get("EXTENSIONS", [])
+				Global.selector_active = system_settings.get("EXTENSIONS", []).duplicate()
+				Global.selector_multi = true
+				_selector_mode = "extensions"
+				Navigator.push("checkbox_selector")
+				return
+			elif key in ["EMULATOR", "CORE"] and options.size() > 0:
+				Global.selector_title = Global.special_item.clean + " " + _setting_label(key)
+				Global.selector_items = options
+				Global.selector_active = [current_value] if current_value != null else []
+				Global.selector_multi = false
+				_selector_mode = key
+				Navigator.push("checkbox_selector")
+				return
+			pending_setting = key
+			Global.clear_visible(Global.special_item.clean + " " + pending_setting, options)
+			for i in range(0, options.size()):
+				if Global.option_list[i].filename == current_value:
 					Global.highlight_selection(i)
 					break
 			return

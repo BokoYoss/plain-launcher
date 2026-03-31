@@ -125,7 +125,8 @@ func _on_text_input(text: String):
 				if text == "":
 					intent.erase("flags")
 				else:
-					intent["flags"] = text.split(",").map(func(s): return s.strip_edges()).filter(func(s): return s != "")
+					var parts: Array = Array(text.split(","))
+					intent["flags"] = parts.map(func(s): return s.strip_edges()).filter(func(s): return s != "")
 			_:
 				if editing_field.begins_with("extra_"):
 					var extra_key = editing_field.substr(6)

@@ -182,10 +182,10 @@
 		"providedFile": "{game}"
 	},
 	"melonds": {
-		"action": "android.intent.action.VIEW",
+		"action": "me.magnum.melonds.LAUNCH_ROM",
 		"componentPackage": "me.magnum.melonds",
-		"componentClass": "me.magnum.melonds.ui.MainActivity",
-		"data": "{game}"
+		"componentClass": "me.magnum.melonds.ui.emulator.EmulatorActivity",
+		"providedFile": "{game}"
 	},
 	"scummvm": {
 		"action": "android.intent.action.MAIN",
