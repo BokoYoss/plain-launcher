@@ -122,7 +122,7 @@ var populate_filter = null
 
 var font = null
 
-var VERSION = "25"
+var VERSION = "26"
 
 # Cover art
 @onready var cover := $BoxContainer
