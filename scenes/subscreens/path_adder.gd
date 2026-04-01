@@ -22,48 +22,48 @@ func get_storage_selection(string):
 	print("Attempting to use " + string)
 	pending_path = string.replace(" ", "").replace(":", "/")
 	if DirAccess.open(pending_path) == null:
-		Global.clear_visible("Sorry, unable to access that.", ["OK"])
+		Global.clear_visible("Sorry, unable to access that.", [option.with_callback("OK", populate_content)])
 		return
-	Global.clear_visible("Use " + pending_path + "?", ["Yes", "No"])
+	var path = pending_path
+	Global.clear_visible("Use " + path + "?", [
+		option.with_callback("Yes", func():
+			additional_paths.append(path)
+			Global.store_additional_paths(additional_paths)
+			populate_content()
+		),
+		option.with_callback("No", populate_content),
+	])
 
 func on_storage_config_failure(message):
 	print("Failure when setting up storage")
-	Global.clear_visible("Unable to access", ["OK"])
+	Global.clear_visible("Unable to access", [option.with_callback("OK", populate_content)])
 
 func populate_content():
 	additional_paths = Global.get_additional_paths()
 
-	var options = ["Add a path"]
-	options.append_array(additional_paths)
+	var items = [option.with_callback("Add a path", func(): AndroidInterface.choose_storage_directory())]
+	for path in additional_paths:
+		var p = path
+		items.append(option.with_callback(p, func():
+			pending_path = p
+			Global.clear_visible(p, [
+				option.with_callback("Remove", func():
+					Global.remove_additional_path(p)
+					populate_content()
+				),
+				option.with_callback("Back", populate_content),
+			])
+		))
 
-	Global.clear_visible("Add game paths", options)
-
-	Global.list_directory_contents(current_dir)
+	Global.clear_visible("Add game paths", items)
+	Global.list_directory_contents(current_dir, true, [], true, false)
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	if start_time != null and Time.get_ticks_msec() - start_time < 500:
 		return
 	if Global.confirm_pressed():
-		var selected = Global.get_selected().filename
-		if selected == "Add a path":
-			AndroidInterface.choose_storage_directory()
-			return
-		elif selected == "OK" or selected == "No" or selected == "Back":
-			populate_content()
-			return
-		elif selected == "Yes":
-			additional_paths.append(pending_path)
-			Global.store_additional_paths(additional_paths)
-			populate_content()
-			return
-		elif selected == "Remove":
-			Global.remove_additional_path(pending_path)
-			populate_content()
-			return
-		else:
-			pending_path = selected
-			Global.clear_visible(pending_path, ["Remove", "Back"])
-			return
+		var selected = Global.get_selected()
+		selected.trigger(Actions.CONFIRM)
 	elif Global.back_pressed():
 		Navigator.pop()

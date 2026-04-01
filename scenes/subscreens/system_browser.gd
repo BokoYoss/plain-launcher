@@ -11,6 +11,7 @@ func _ready():
 	Global.alt_art_path = ""
 	Global.title_can_be_blank = true
 	populate_content()
+	Global.show_message("Back: Settings  Start: Refresh")
 
 func populate_content(msg_override=null):
 	Global.clear_visible(Settings.get_setting(Settings.CFG_SYSTEM_TITLE))
@@ -21,6 +22,10 @@ func populate_content(msg_override=null):
 	Global.populate_favorites()
 	var special = ["RECENT", "FAVORITES", "ANDROID"] # special directories placed at top
 	Global.list_directory_contents(system_dir, true, special, false)
+	var nonempty = Global.get_nonempty_systems()
+	Global.option_list = Global.option_list.filter(func(opt): return opt.clean in special or nonempty.has(opt.filename))
+	Global.restore_position()
+	Global.highlight_selection()
 	#Global.show_message("SELECT for GLOBAL options", true)
 
 	if msg_override != null:
@@ -51,6 +56,10 @@ func _process(delta):
 		Global.special_item = Global.get_selected()
 		Navigator.push("game_browser")
 		Global.subscreen = selected_system
+		return
+	if Input.is_action_just_pressed("start"):
+		Global.clear_dir_cache()
+		populate_content("Cache refreshed")
 		return
 	if Global.back_pressed():
 		Navigator.push("settings")

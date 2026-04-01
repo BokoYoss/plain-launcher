@@ -34,12 +34,20 @@ const CFG_TEXT_LENGTH = "TEXT_LENGTH"
 const CFG_SHOW_FAVS_FIRST = "SHOW_FAVS_FIRST"
 const CFG_SS_USER = "SS_USER"
 const CFG_SS_PASS = "SS_PASS"
-const CFG_SS_DEVID = "SS_DEVID"
-const CFG_SS_DEVPASS = "SS_DEVPASS"
-const CFG_SS_SOFT_NAME = "SS_SOFT_NAME"
+const CFG_SCREENSCRAPER_URL = "SCREENSCRAPER_URL"
 const CFG_SGDB_KEY = "SGDB_KEY"
 const CFG_SCRAPER_BACKEND = "SCRAPER_BACKEND"
 const CFG_TOUCH_INVERT_SCROLL = "TOUCH_INVERT_SCROLL"
+
+const LAYOUT_SIZES = [0.25, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.75, 2.0]
+const COVER_SIZES = [Vector2.ZERO, Vector2(0.2, 0.3), Vector2(0.4, 0.6), Vector2(0.5, 0.8)]
+const BORDER_SIZES = [Vector2.ZERO, Vector2(4, 4), Vector2(8, 8), Vector2(16, 16), Vector2(32, 32), Vector2(64, 64)]
+const OPACITY_LEVELS = [0.1, 0.25, 0.5, 0.75, 0.9, 1.0]
+const SHADOW_LOCATIONS = [Vector2.ZERO, Vector2(32, 32), Vector2(-32, 32), Vector2(-32, -32), Vector2(32, -32)]
+const TITLE_ORIENTATIONS = [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT]
+const TITLE_SIZES = [0.1, 0.15, 0.25, 0.35, 0.5, 0.75, 1.0]
+const LINE_LENGTHS = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.85, 1.0]
+const MARGINS = [0.0, 4.0, 8.0, 12.0, 16.0, 20.0, 24.0, 32.0, 40.0, 48.0, 64.0]
 
 var DEFAULT_SETTINGS = {
 	CFG_CONFIRM_SWAP: false,
@@ -47,7 +55,7 @@ var DEFAULT_SETTINGS = {
 	CFG_FG_COLOR: Color("#f5f7fa"),
 	CFG_CAPS_LOCK: false,
 	CFG_LAST_SCREEN: "",
-	CFG_SCALER: 0.25,
+	CFG_SCALER: 0.0,
 	CFG_VIBRATE: true,
 	CFG_VISUAL_ALT_ART_PATH: "",
 	CFG_VISUAL_BORDER: Vector2(8, 8),
@@ -64,15 +72,13 @@ var DEFAULT_SETTINGS = {
 	CFG_VISUAL_LETTER_OUTLINES: 0,
 	CFG_LEFT_MARGIN: 16.0,
 	CFG_TOP_MARGIN: 8.0,
-	CFG_TEXT_LENGTH: 0.5,
+	CFG_TEXT_LENGTH: 1.0,
 	CFG_TITLE_SIZE: 0.25,
 	CFG_SYSTEM_TITLE: "SYSTEMS",
 	CFG_SHOW_FAVS_FIRST: false,
 	CFG_SS_USER: "",
 	CFG_SS_PASS: "",
-	CFG_SS_DEVID: "",
-	CFG_SS_DEVPASS: "",
-	CFG_SS_SOFT_NAME: "",
+	CFG_SCREENSCRAPER_URL: "",
 	CFG_SGDB_KEY: "",
 	CFG_SCRAPER_BACKEND: "screenscraper",
 	CFG_TOUCH_INVERT_SCROLL: false,
@@ -80,16 +86,50 @@ var DEFAULT_SETTINGS = {
 
 var _data = null
 
+func _compute_default_scaler() -> float:
+	var window_height = DisplayServer.window_get_size().y
+	var raw = clampf(window_height / 960.0, LAYOUT_SIZES[0], LAYOUT_SIZES[-1])
+	var best = LAYOUT_SIZES[0]
+	for size in LAYOUT_SIZES:
+		if abs(size - raw) < abs(best - raw):
+			best = size
+	return best
+
 func get_setting(key):
 	if _data == null:
 		_load()
-	return _data.get(key, DEFAULT_SETTINGS.get(key))
+	var val = _data.get(key, DEFAULT_SETTINGS.get(key))
+	if key == CFG_SCALER and val == 0.0:
+		val = _compute_default_scaler()
+		_data[key] = val
+		_save()
+	return val
 
 func store(key, value):
 	print("STORE SETTING " + key + ": " + str(value))
 	if _data == null:
 		_data = {}
 	_data[key] = value
+	_save()
+
+const VISUAL_KEYS = [
+	CFG_BG_COLOR, CFG_FG_COLOR, CFG_CAPS_LOCK, CFG_SCALER, CFG_FONT,
+	CFG_VISUAL_ALT_ART_PATH, CFG_VISUAL_BORDER, CFG_VISUAL_SYSTEM_BORDER,
+	CFG_VISUAL_BUILTIN_SYSTEM_ART, CFG_VISUAL_DROP_SHOW, CFG_VISUAL_COVER_SIZE,
+	CFG_VISUAL_COVER_OPACITY, CFG_VISUAL_TITLE_ORIENTATION, CFG_VISUAL_BODY_ORIENTATION,
+	CFG_VISUAL_ART_ORIENTATION, CFG_VISUAL_ART_POSITION_X, CFG_VISUAL_ART_POSITION_Y,
+	CFG_VISUAL_LETTER_OUTLINES, CFG_LEFT_MARGIN, CFG_TOP_MARGIN, CFG_TITLE_SIZE,
+	CFG_SYSTEM_TITLE, CFG_TEXT_LENGTH,
+]
+
+func reset_visual():
+	if _data == null:
+		_load()
+	for key in VISUAL_KEYS:
+		if DEFAULT_SETTINGS.has(key):
+			_data[key] = DEFAULT_SETTINGS[key]
+		else:
+			_data.erase(key)
 	_save()
 
 func reset():
@@ -129,7 +169,7 @@ func _load_secrets():
 	f.close()
 	if parsed == null:
 		return
-	for key in [CFG_SS_DEVID, CFG_SS_DEVPASS, CFG_SS_SOFT_NAME]:
+	for key in [CFG_SCREENSCRAPER_URL]:
 		if key in parsed and _data.get(key, "") == "":
 			_data[key] = parsed[key]
 

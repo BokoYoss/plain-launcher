@@ -68,7 +68,7 @@ func populate_files(root, dir_only=false):
 
 	#Global.clear_visible("START to use current directory")
 
-	Global.list_directory_contents(current_dir)
+	Global.list_directory_contents(current_dir, true, [], true, false)
 
 func copy_builtin_contents(relative_dir):
 	var config_dir = DirAccess.open("res://launcher_configs/" + relative_dir)

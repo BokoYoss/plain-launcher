@@ -7,7 +7,24 @@ func _ready():
 	populate_content()
 
 func populate_content(msg_override=null):
-	Global.clear_visible("Credits", ["Development", "Fonts", "System Images", "Color Palette"])
+	Global.clear_visible("Credits", [
+		option.with_callback("Development", func():
+			Global.store_position()
+			Global.clear_visible("Credits", ["Created with Godot 4", "https://godotengine.org/", "by Yossarian", "https://ko-fi.com/yossariano"])
+		),
+		option.with_callback("Fonts", func():
+			Global.store_position()
+			populate_font_credits()
+		),
+		option.with_callback("System Images", func():
+			Global.store_position()
+			Global.clear_visible("System Images", ["All system photos by Evan Amos", "https://commons.wikimedia.org/wiki/User:Evan-Amos"])
+		),
+		option.with_callback("Color Palette", func():
+			Global.store_position()
+			Global.clear_visible("Color palette credits", ["'Duel' palette created by Arilyn", "https://lospec.com/palette-list/duel"])
+		),
+	])
 
 func populate_font_credits():
 	var font_dir = DirAccess.open("res://launcher_configs/COMMON/fonts")
@@ -15,34 +32,24 @@ func populate_font_credits():
 	font_dir.list_dir_begin()
 	var subdir = font_dir.get_next()
 	while subdir != "":
-		fonts.append(subdir)
+		var font_name = subdir
+		fonts.append(option.with_callback(font_name, func():
+			Global.store_position()
+			Global.clear_visible(font_name, FileAccess.get_file_as_string("res://launcher_configs/COMMON/fonts/" + font_name + "/OFL.txt").split("\n"))
+		))
 		subdir = font_dir.get_next()
-	Global.clear_visible("Font credits", fonts)
 	font_dir.list_dir_end()
+	Global.clear_visible("Font credits", fonts)
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	if Global.confirm_pressed():
 		Global.store_position()
-		if Global.get_selected().clean == "Development":
-			Global.clear_visible("Credits", ["Created with Godot 4", "https://godotengine.org/", "by Yossarian", "https://ko-fi.com/yossariano"])
+		var selected = Global.get_selected()
+		if selected.trigger(Actions.CONFIRM):
 			return
-		if Global.get_selected().clean == "Fonts":
-			populate_font_credits()
-			return
-		if Global.get_selected().clean == "System Images":
-			Global.clear_visible("System Images", ["All system photos by Evan Amos", "https://commons.wikimedia.org/wiki/User:Evan-Amos"])
-			return
-		if Global.title.text == "Font credits":
-			Global.clear_visible(Global.get_selected().clean, FileAccess.get_file_as_string("res://launcher_configs/COMMON/fonts/" + Global.get_selected().clean + "/OFL.txt").split("\n"))
-			return
-		if Global.get_selected().clean == "Color Palette":
-			Global.clear_visible("Color palette credits", ["'Duel' palette created by Arilyn", "https://lospec.com/palette-list/duel"])
-			return
-		if Global.get_selected().clean.begins_with("https"):
-			AndroidInterface.launch_intent(JSON.stringify({"action": "android.intent.action.VIEW", "data": Global.get_selected().clean}))
-			return
-		Navigator.pop()
+		if selected.clean.begins_with("https"):
+			AndroidInterface.launch_intent(JSON.stringify({"action": "android.intent.action.VIEW", "data": selected.clean}))
 	if Global.back_pressed():
 		Global.store_position()
 		if Global.title.text == "Font credits":

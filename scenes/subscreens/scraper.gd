@@ -1,6 +1,6 @@
 extends Screen
 
-const SS_API_BASE = "https://www.screenscraper.fr/api2/jeuInfos.php"
+const SS_API_BASE = "https://jk7vbrz6o4.execute-api.us-west-2.amazonaws.com/prod/screenscraper"
 const SGDB_SEARCH_BASE = "https://www.steamgriddb.com/api/v2/search/autocomplete/"
 const SGDB_GRIDS_BASE = "https://www.steamgriddb.com/api/v2/grids/game/"
 
@@ -62,7 +62,7 @@ func _ready():
 	_show_backend_choice()
 
 func _show_backend_choice():
-	var ss_available = Settings.get_setting(Settings.CFG_SS_DEVID) != "" and Settings.get_setting(Settings.CFG_SS_SOFT_NAME) != ""
+	var ss_available = Settings.get_setting(Settings.CFG_SCREENSCRAPER_URL) != ""
 	var title = "Scrape " + (game_list[0].clean if single_game else str(game_list.size()) + " games") + " with..."
 	var options = []
 	if ss_available:
@@ -226,21 +226,13 @@ func find_art_url(game) -> String:
 func find_art_url_ss(game) -> String:
 	var ss_user = Settings.get_setting(Settings.CFG_SS_USER)
 	var ss_pass = Settings.get_setting(Settings.CFG_SS_PASS)
-	var ss_devid = Settings.get_setting(Settings.CFG_SS_DEVID)
-	var ss_devpass = Settings.get_setting(Settings.CFG_SS_DEVPASS)
-	var ss_soft_name = Settings.get_setting(Settings.CFG_SS_SOFT_NAME)
 
 	while true:
 		var url = (SS_API_BASE
-			+ "?devid=" + ss_devid.uri_encode()
-			+ "&softname=" + ss_soft_name.uri_encode()
-			+ "&output=json"
-			+ "&ssid=" + ss_user.uri_encode()
+			+ "?ssid=" + ss_user.uri_encode()
 			+ "&sspassword=" + ss_pass.uri_encode()
 			+ "&systemeid=" + str(system_id)
 			+ "&romnom=" + game.filename.uri_encode())
-		if ss_devpass != "":
-			url += "&devpassword=" + ss_devpass.uri_encode()
 
 		var err = http_search.request(url)
 		if err != OK:

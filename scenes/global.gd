@@ -62,6 +62,8 @@ var disable_scroll := false
 
 var held_time = -1
 var frame = 0
+var _analog_left_just: bool = false
+var _analog_right_just: bool = false
 
 const OPTIONS_MAKER = preload("res://scenes/option.tscn")
 @onready var null_option = OPTIONS_MAKER.instantiate()
@@ -120,9 +122,95 @@ var post_scroll_callback = null
 var on_leave_screen = null
 var populate_filter = null
 
+# Directory listing cache: { "path|dirs_only" -> PackedStringArray }
+var _dir_cache: Dictionary = {}
+
+func clear_dir_cache():
+	print("DIR CACHE: cleared (" + str(_dir_cache.size()) + " entries)")
+	_dir_cache.clear()
+
+func _read_dir_uncached(directory: DirAccess, dirs_only: bool) -> PackedStringArray:
+	var file_names: PackedStringArray = []
+	if dirs_only:
+		directory.list_dir_begin()
+		var file_name = directory.get_next()
+		while file_name != "":
+			if directory.dir_exists(file_name):
+				file_names.append(file_name)
+			file_name = directory.get_next()
+		directory.list_dir_end()
+		file_names.sort()
+	else:
+		for f in directory.get_files():
+			file_names.append(f)
+	return file_names
+
+func _read_dir_cached(directory: DirAccess, dirs_only: bool) -> PackedStringArray:
+	var cache_key = directory.get_current_dir() + "|" + str(dirs_only)
+	if _dir_cache.has(cache_key):
+		return _dir_cache[cache_key]
+	var result = _read_dir_uncached(directory, dirs_only)
+	_dir_cache[cache_key] = result
+	return result
+
+func _dir_has_files(path: String) -> bool:
+	var dir = DirAccess.open(path)
+	if dir == null:
+		return false
+	dir.list_dir_begin()
+	var found = false
+	var entry = dir.get_next()
+	while entry != "":
+		if not dir.current_is_dir():
+			found = true
+			break
+		entry = dir.get_next()
+	dir.list_dir_end()
+	return found
+
+func _get_all_system_paths(system_name: String) -> Array:
+	var paths = [root_path + PATH_GAMES + "/" + system_name]
+	var paths_file = root_path + PATH_CONFIG + system_name + "/paths.txt"
+	if FileAccess.file_exists(paths_file):
+		for path in FileAccess.get_file_as_string(paths_file).split("\n"):
+			path = path.strip_edges()
+			if path != "":
+				paths.append(path)
+	var compat_file = root_path + PATH_CONFIG + system_name + "/compatibility_paths.txt"
+	if FileAccess.file_exists(compat_file) and OS.get_name() == "Android":
+		var external_path = AndroidInterface.get_external_storage_path()
+		if external_path != null:
+			for path in FileAccess.get_file_as_string(compat_file).split("\n"):
+				if path != null and path != "":
+					paths.append(external_path + path)
+	return paths
+
+func _system_has_games(system_name: String) -> bool:
+	for path in _get_all_system_paths(system_name):
+		if _dir_has_files(path):
+			return true
+	return false
+
+func get_nonempty_systems() -> PackedStringArray:
+	var cache_key = "_nonempty_systems"
+	if _dir_cache.has(cache_key):
+		return _dir_cache[cache_key]
+	var games_dir = DirAccess.open(root_path + PATH_GAMES)
+	if games_dir == null:
+		return PackedStringArray()
+	var all_dirs = _read_dir_cached(games_dir, true)
+	var result: PackedStringArray = []
+	for dir_name in all_dirs:
+		if _system_has_games(dir_name):
+			result.append(dir_name)
+		else:
+			print("Skipping empty system: " + dir_name)
+	_dir_cache[cache_key] = result
+	return result
+
 var font = null
 
-var VERSION = "27"
+var VERSION = "28"
 
 # Cover art
 @onready var cover := $BoxContainer
@@ -453,12 +541,14 @@ func set_up_slots():
 
 	#print("TITLE TEXT: " + title.text + "TITLE SIZE: " + str(title.size.y * title.scale.y) + " SLOT START: " + str(slot_start))
 
+	if message != null:
+		message.queue_free()
 	message = $SlotHolder/Body.duplicate()
 	add_child.call_deferred(message)
-	message.position.y = Global.window_height - text_height
+	message.position.y = Global.window_height - scaled_text_height / 4.0
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	message.size.x = Global.window_width * Settings.get_setting(Settings.CFG_TEXT_LENGTH)
-	message.position.x = Global.window_width - 2.0
+	message.position.x = Global.window_width - 2.0 - message.size.x
 	message.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
 	message.set("theme_override_font_sizes/font_size", scaled_text_height / 2.0)
 	$Pixel.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
@@ -478,7 +568,6 @@ func set_up_slots():
 		slot_offset = left_bound
 
 		new_slot.horizontal_alignment = body_alignment
-		message.set("theme_override_font_sizes/font_size", scaled_text_height / 2.0)
 		slot_holder.add_child.call_deferred(new_slot)
 		visible_slots.append(new_slot)
 		new_slot.add_theme_constant_override("outline_size", outline_thickness)
@@ -494,7 +583,8 @@ func set_up_slots():
 		#fav_indicator.position.y = scaled_text_height / 4.0 - 2.0
 		#fav_indicators.append(fav_indicator)
 
-	message.visible = false
+	message.set("theme_override_font_sizes/font_size", minf(scaled_text_height / 4.0, 20.0))
+	#message.visible = false
 	var custom_font = Settings.get_setting(Settings.CFG_FONT)
 	if custom_font != null and ResourceLoader.exists(custom_font):
 		font = ResourceLoader.load(custom_font)
@@ -518,82 +608,113 @@ func refresh_fonts():
 	for slot in visible_slots:
 		slot.add_theme_font_override("font", font)
 
-func cycle_options(cfg_key, options_list):
+func _nearest_index(value, options_list) -> int:
+	var best = 0
+	var best_dist = abs(float(options_list[0]) - float(value))
+	for i in range(1, options_list.size()):
+		var dist = abs(float(options_list[i]) - float(value))
+		if dist < best_dist:
+			best_dist = dist
+			best = i
+	return best
+
+func _scroll_horizontal(direction: int):
+	if not get_selected().trigger(Actions.DIRECTION, [direction]):
+		if direction > 0:
+			for i in range(0, min(5, option_list.size() - option_selection)):
+				if option_selection < option_list.size() - 1:
+					move_down()
+		else:
+			for i in range(0, 5):
+				if option_selection > 0:
+					move_up()
+		on_scroll()
+
+func cycle_options(cfg_key, options_list, direction: int = 1):
 	print("SETTING OPTION " + cfg_key + " with list " + str(options_list))
-	if Settings.get_setting(cfg_key) not in options_list:
-		Settings.store(cfg_key, options_list[0])
-		return
-	for i in range(0, options_list.size()):
-		var opt = options_list[i]
-		var next = i+1
-		if i == options_list.size() - 1:
-			next = 0
-		if Settings.get_setting(cfg_key) == opt:
-			Settings.store(cfg_key, options_list[next])
-			break
+	var current = Settings.get_setting(cfg_key)
+	var idx = options_list.find(current)
+	if idx < 0:
+		if current is float or current is int:
+			idx = _nearest_index(current, options_list)
+		else:
+			Settings.store(cfg_key, options_list[0])
+			return
+	var next = (idx + direction) % options_list.size()
+	if next < 0:
+		next += options_list.size()
+	Settings.store(cfg_key, options_list[next])
 
-func cycle_sizes():
-	cycle_options(Settings.CFG_SCALER, [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0])
+func get_cycle_index(cfg_key, options_list) -> int:
+	var current = Settings.get_setting(cfg_key)
+	var idx = options_list.find(current)
+	if idx >= 0:
+		return idx + 1
+	if current is float or current is int:
+		return _nearest_index(current, options_list) + 1
+	return 1
+
+func cycle_sizes(direction: int = 1):
+	cycle_options(Settings.CFG_SCALER, Settings.LAYOUT_SIZES, direction)
 	set_up_slots()
 	show_options(scroll_offset)
 	set_all_text_color(Settings.get_setting(Settings.CFG_FG_COLOR))
 	highlight_selection(option_selection)
 	refresh_art()
 
-func cycle_cover_sizes():
-	cycle_options(Settings.CFG_VISUAL_COVER_SIZE, [Vector2.ZERO, Vector2(0.2, 0.3), Vector2(0.4, 0.6), Vector2(0.5, 0.8)])
+func cycle_cover_sizes(direction: int = 1):
+	cycle_options(Settings.CFG_VISUAL_COVER_SIZE, Settings.COVER_SIZES, direction)
 	set_up_slots()
 	refresh_art()
 	show_options(scroll_offset)
 	set_all_text_color(Settings.get_setting(Settings.CFG_FG_COLOR))
 	highlight_selection(option_selection)
 
-func cycle_drop_shadow_locations():
-	cycle_options(Settings.CFG_VISUAL_DROP_SHOW, [Vector2.ZERO, Vector2(32, 32), Vector2(-32, 32), Vector2(-32, -32), Vector2(32, -32)])
+func cycle_drop_shadow_locations(direction: int = 1):
+	cycle_options(Settings.CFG_VISUAL_DROP_SHOW, Settings.SHADOW_LOCATIONS, direction)
 	refresh_art()
 
-func cycle_border_thickness():
-	cycle_options(Settings.CFG_VISUAL_BORDER, [Vector2.ZERO, Vector2(4, 4), Vector2(8, 8), Vector2(16, 16), Vector2(32, 32), Vector2(64, 64)])
+func cycle_border_thickness(direction: int = 1):
+	cycle_options(Settings.CFG_VISUAL_BORDER, Settings.BORDER_SIZES, direction)
 	if Navigator.current_screen == "system_browser" and Settings.get_setting(Settings.CFG_VISUAL_BORDER) == Vector2.ZERO:
 		Settings.store(Settings.CFG_VISUAL_SYSTEM_BORDER, false)
 	refresh_art()
 
-func cycle_title_allignment():
-	cycle_options(Settings.CFG_VISUAL_TITLE_ORIENTATION, [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT])
+func cycle_title_allignment(direction: int = 1):
+	cycle_options(Settings.CFG_VISUAL_TITLE_ORIENTATION, Settings.TITLE_ORIENTATIONS, direction)
 	set_up_slots()
 
-func cycle_body_allignment():
-	cycle_options(Settings.CFG_VISUAL_BODY_ORIENTATION, [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT])
+func cycle_body_allignment(direction: int = 1):
+	cycle_options(Settings.CFG_VISUAL_BODY_ORIENTATION, Settings.TITLE_ORIENTATIONS, direction)
 	set_up_slots()
 	set_all_text_color(Settings.get_setting(Settings.CFG_FG_COLOR))
 
-func cycle_art_alignment():
-	cycle_options(Settings.CFG_VISUAL_ART_ORIENTATION, [0.25, 0.5, 0.75])
+func cycle_art_alignment(direction: int = 1):
+	cycle_options(Settings.CFG_VISUAL_ART_ORIENTATION, [0.25, 0.5, 0.75], direction)
 	refresh_art()
 
-func cycle_art_opacity():
-	cycle_options(Settings.CFG_VISUAL_COVER_OPACITY, [0.1, 0.25, 0.5, 0.75, 0.9, 1.0])
+func cycle_art_opacity(direction: int = 1):
+	cycle_options(Settings.CFG_VISUAL_COVER_OPACITY, Settings.OPACITY_LEVELS, direction)
 	refresh_art()
 
-func cycle_left_margin():
-	cycle_options(Settings.CFG_LEFT_MARGIN, [0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0])
+func cycle_left_margin(direction: int = 1):
+	cycle_options(Settings.CFG_LEFT_MARGIN, Settings.MARGINS, direction)
 	set_up_slots()
 
-func cycle_top_margin():
-	cycle_options(Settings.CFG_TOP_MARGIN, [0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0])
+func cycle_top_margin(direction: int = 1):
+	cycle_options(Settings.CFG_TOP_MARGIN, Settings.MARGINS, direction)
 	set_up_slots()
 
-func cycle_title_size():
-	cycle_options(Settings.CFG_TITLE_SIZE, [0.1, 0.25, 0.5, 0.75, 1.0])
+func cycle_title_size(direction: int = 1):
+	cycle_options(Settings.CFG_TITLE_SIZE, Settings.TITLE_SIZES, direction)
 	set_up_slots()
 
-func cycle_system_title():
-	print("HERE")
-	cycle_options(Settings.CFG_SYSTEM_TITLE, ["SYSTEMS", "", "PLAIN LAUNCHER", "MAIN", "ALL"])
+func cycle_system_title(direction: int = 1):
+	cycle_options(Settings.CFG_SYSTEM_TITLE, ["SYSTEMS", "", "PLAIN LAUNCHER", "MAIN", "ALL"], direction)
 	set_up_slots()
 
-func cycle_line_length():
-	cycle_options(Settings.CFG_TEXT_LENGTH, [0.25, 0.4, 0.5, 0.6, 0.75, 1.0])
+func cycle_line_length(direction: int = 1):
+	cycle_options(Settings.CFG_TEXT_LENGTH, Settings.LINE_LENGTHS, direction)
 	set_up_slots()
 
 
@@ -606,6 +727,7 @@ func toggle_text_outline():
 	Settings.store(Settings.CFG_VISUAL_LETTER_OUTLINES, outline_thickness)
 
 func show_message(msg, priority=false):
+	"""
 	if msg == "" or msg == null:
 		message_queue.clear()
 		message.text = ""
@@ -616,6 +738,12 @@ func show_message(msg, priority=false):
 		message_queue.append(msg)
 		return
 	if message.text.to_lower() == msg.to_lower():
+		return
+	"""
+	if msg == "" or msg == null:
+		message_queue.clear()
+		message.text = ""
+		message.modulate.a = 0.0
 		return
 	print("showing message: " + msg)
 	message.text = ALIAS_MAP.get(msg, msg)
@@ -688,7 +816,10 @@ func clear_visible(title_text="", custom_options=[]):
 		confirming = true
 		option_selection = 0
 		for custom_option in custom_options:
-			option_list.append(option.new_option(custom_option))
+			if custom_option is option:
+				option_list.append(custom_option)
+			else:
+				option_list.append(option.new_option(custom_option))
 		for i in range(0, min(visible_slots.size(), option_list.size())):
 			set_slot(i, option_list[i].clean)
 		restore_position()
@@ -798,6 +929,9 @@ func highlight_selection(next_selection=option_selection):
 	if post_draw_callback != null:
 		post_draw_callback.call()
 
+func refresh_option_text():
+	show_options(scroll_offset)
+
 func show_options(offset=0):
 	if offset == null:
 		offset = 0
@@ -896,9 +1030,10 @@ func toggle_favorite(item):
 		return
 	if item.favorite_dir or Global.favorites_list.has(item.absolute_path):
 		remove_favorite(item)
-		Global.show_message("Removed from FAVORITES", true)
+		Global.show_message("Removed from favorites", true)
 	else:
 		add_favorite(item)
+		Global.show_message("Added to favorites", true)
 	highlight_selection()
 	show_options(scroll_offset)
 
@@ -942,37 +1077,25 @@ func list_multiple_paths_combined(paths):
 		if dir == null:
 			print("FAILED TO ACCESS " + path)
 			continue
-		list_directory_contents(dir, false, [], false, false)
+		list_directory_contents(dir, false, [], false)
 	Global.option_list.sort_custom(func(a,b): return a.filename.to_lower() < b.filename.to_lower())
 	restore_position()
 
-func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], skip_empty_dirs=false, refresh_at_end=true):
+func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], refresh_at_end=true, use_cache=true):
 	if directory == null:
 		return
 	print("LIST CONTENTS " + directory.get_current_dir() + " DIRS_ONLY: " + str(dirs_only))
+	current_directory = directory.get_current_dir()
+	var cached = _read_dir_cached(directory, dirs_only) if use_cache else _read_dir_uncached(directory, dirs_only)
 	var file_names = []
 	var system = ""
 	if dirs_only:
-		directory.list_dir_begin()
-		current_directory = directory.get_current_dir()
-		var file_name = directory.get_next()
-		while file_name != "":
-			if special.has(file_name):
-				pass
-			elif dirs_only:
-				if directory.dir_exists(file_name):
-					if skip_empty_dirs and directory.get_files_at(directory.get_current_dir() + "/" + file_name).is_empty() and directory.get_directories_at(directory.get_current_dir() + "/" + file_name).is_empty():
-						print("Skipping empty directory " + directory.get_current_dir() + "/" + file_name)
-					else:
-						file_names.append(file_name)
-			else:
-				if not directory.dir_exists(file_name):
-					file_names.append(file_name)
-			file_name = directory.get_next()
-		directory.list_dir_end()
+		for f in cached:
+			if not special.has(f):
+				file_names.append(f)
 		file_names.sort_custom(func(a, b): return a.to_lower() < b.to_lower())
 	else:
-		file_names = directory.get_files()
+		file_names = Array(cached)
 		system = Global.subscreen
 	var unique_paths = get_system_unique_paths()
 	for path in unique_paths.keys():
@@ -1253,32 +1376,20 @@ func _process(delta):
 				held_time = Time.get_ticks_msec()
 				on_scroll()
 		if Global.right_just_pressed():
-			for i in range(0, min(5, option_list.size()-option_selection)):
-				if option_selection < option_list.size()-1:
-					move_down()
+			_scroll_horizontal(1)
 			held_time = Time.get_ticks_msec() + 500
-			on_scroll()
 		if Global.right_held():
 			if Time.get_ticks_msec() - held_time > 20:
-				for i in range(0, min(5, option_list.size()-option_selection)):
-					if option_selection < option_list.size()-1:
-						move_down()
+				_scroll_horizontal(1)
 				held_time = Time.get_ticks_msec()
-				on_scroll()
 		if Global.left_just_pressed():
-			for i in range(0, 5):
-				if option_selection > 0:
-					move_up()
+			_scroll_horizontal(-1)
 			held_time = Time.get_ticks_msec() + 500
-			on_scroll()
 		if Global.left_held():
 			if Time.get_ticks_msec() - held_time > 20:
-				for i in range(0, 5):
-					if option_selection > 0:
-						move_up()
+				_scroll_horizontal(-1)
 				held_time = Time.get_ticks_msec()
-				on_scroll()
-		if Input.is_action_just_pressed("special"):
+		if Input.is_action_just_pressed("special") and special_allowed():
 			Navigator.go_to_special()
 
 func _physics_process(delta):
@@ -1293,10 +1404,16 @@ func _physics_process(delta):
 					vibrate(30)
 					move_down()
 					on_scroll()
-				elif flick_angle < - PI / 4.0 and flick_angle > -3 * PI / 4.0:
+				elif flick_angle < -PI / 4.0 and flick_angle > -3 * PI / 4.0:
 					vibrate(30)
 					move_up()
 					on_scroll()
+				elif abs(flick_angle) < PI / 4.0:
+					vibrate(30)
+					_analog_right_just = true
+				elif abs(flick_angle) > 3 * PI / 4.0:
+					vibrate(30)
+					_analog_left_just = true
 		tilt_ratio = new_tilt_ratio
 
 	if cursor_locked():
@@ -1318,7 +1435,7 @@ func _physics_process(delta):
 	if option_selection == 0 and scroll_offset != 0:
 		scroll_offset = 0
 	var curr_slot = visible_slots[option_selection - scroll_offset]
-	if special_allowed() and ((touch_position == null and control_tilt.x > 0.5) or (confirm_hold_time != null and Time.get_ticks_msec() - confirm_hold_time > 500)):
+	if special_allowed() and (confirm_hold_time != null and Time.get_ticks_msec() - confirm_hold_time > 500):
 		if curr_slot.scale.x < 1.2:
 			curr_slot.scale *= 1.1
 			curr_slot.size /= 1.1
@@ -1346,24 +1463,10 @@ func _physics_process(delta):
 		return
 
 	if touch_position == null:
-		if control_tilt.x < -0.5:
-			if title.position.x > 0:
-				title.position.x = lerp(float(title.position.x), 0.0, 0.3)
-				if title.position.x > left_bound / 2.0:
-					pending_back = false
-				else:
-					if !pending_back:
-						vibrate(100)
-					pending_back = true
-		elif title.position.x < left_bound - 1:
+		if title.position.x < left_bound - 1:
 			title.position.x = lerp(float(title.position.x), left_bound, 0.2)
 		else:
 			title.position.x = left_bound
-			pending_back = false
-		if pending_back and ((confirm_swapped and Input.is_action_just_released("back") or !confirm_swapped and Input.is_action_just_released("select"))):
-			touch_check_time = Time.get_ticks_msec() + 1000
-			press_back()
-			return
 
 	if touch_position == null:
 		if abs(touch_momentum) > 0.5 and not cursor_locked():
@@ -1382,7 +1485,7 @@ func _physics_process(delta):
 				scrolled = true
 			if scrolled:
 				on_scroll()
-			touch_momentum *= 0.88
+			touch_momentum *= 0.82
 			if abs(touch_momentum) < 1.0:
 				touch_momentum = 0.0
 				touch_scroll_accum = 0.0
@@ -1461,22 +1564,32 @@ func down_held():
 func left_just_pressed():
 	if Input.is_action_just_pressed("left"):
 		return true
+	if _analog_left_just:
+		_analog_left_just = false
+		return true
 	return false
 
 func left_held():
 	if Input.is_action_pressed("left"):
 		return true
-	return false
+	var x = Input.get_action_strength("left_stick_left") - Input.get_action_strength("left_stick_right")
+	var y_abs = maxf(Input.get_action_strength("left_stick_up"), Input.get_action_strength("left_stick_down"))
+	return x > 0.5 and x > y_abs
 
 func right_just_pressed():
 	if Input.is_action_just_pressed("right"):
+		return true
+	if _analog_right_just:
+		_analog_right_just = false
 		return true
 	return false
 
 func right_held():
 	if Input.is_action_pressed("right"):
 		return true
-	return false
+	var x = Input.get_action_strength("left_stick_right") - Input.get_action_strength("left_stick_left")
+	var y_abs = maxf(Input.get_action_strength("left_stick_up"), Input.get_action_strength("left_stick_down"))
+	return x > 0.5 and x > y_abs
 
 func toggle_vibrate():
 	Settings.store(Settings.CFG_VIBRATE, !Settings.get_setting(Settings.CFG_VIBRATE))
@@ -1526,8 +1639,12 @@ func press_back():
 func disallow_scroll():
 	disable_scroll = true
 
-
 func _input(event):
+	if event.is_action_pressed("ui_cancel"):
+		vibrate(40)
+		press_back()
+		get_viewport().set_input_as_handled()
+		return
 	if !touch_enabled:
 		return
 	if event is InputEventScreenTouch:
@@ -1555,11 +1672,13 @@ func _input(event):
 			confirm_hold_time = null
 			if touch_is_scrolling:
 				touch_momentum = touch_velocity
-			elif diff.x < -window_width / 5.0 and abs(diff.x) > abs(diff.y) * 1.5:
+			elif diff.x < -window_width / 8.0 and abs(diff.x) > abs(diff.y) * 1.2:
+				vibrate(40)
 				press_back()
 			elif pending_special:
 				Navigator.go_to_special()
 			elif elapsed < 400 and diff.length() < text_height:
+				vibrate(30)
 				press_confirm()
 			touch_position = null
 	if event is InputEventScreenDrag:
@@ -1574,12 +1693,14 @@ func _input(event):
 			confirm_hold_time = null
 		if touch_is_scrolling and not cursor_locked():
 			var scroll_dir = -1.0 if Settings.get_setting(Settings.CFG_TOUCH_INVERT_SCROLL) else 1.0
-			touch_scroll_accum += dy * scroll_dir * (1.0 + abs(dy) / text_height)
+			touch_scroll_accum += dy * scroll_dir * (1.3 + abs(dy) / text_height)
 			while touch_scroll_accum > text_height:
 				move_down()
+				vibrate(30)
 				touch_scroll_accum -= text_height
 				on_scroll()
 			while touch_scroll_accum < -text_height:
 				move_up()
+				vibrate(30)
 				touch_scroll_accum += text_height
 				on_scroll()

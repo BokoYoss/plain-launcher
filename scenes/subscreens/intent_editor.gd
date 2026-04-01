@@ -57,28 +57,62 @@ func _on_resume():
 
 func populate_content():
 	var items = []
-	items.append("Action: " + intent.get("action", ""))
-	items.append("Package: " + intent.get("componentPackage", ""))
-	items.append("Class: " + intent.get("componentClass", ""))
+	items.append(option.with_callback("Action: " + intent.get("action", ""), func():
+		editing_field = "action"
+		AndroidInterface.show_text_input("Action", intent.get("action", ""), false)
+	))
+	items.append(option.with_callback("Package: " + intent.get("componentPackage", ""), func():
+		editing_field = "package"
+		AndroidInterface.show_text_input("Package", intent.get("componentPackage", ""), false)
+	))
+	items.append(option.with_callback("Class: " + intent.get("componentClass", ""), func():
+		editing_field = "class"
+		AndroidInterface.show_text_input("Activity class", intent.get("componentClass", ""), false)
+	))
 	if intent.has("data"):
-		items.append("Data: " + intent.get("data", ""))
+		items.append(option.with_callback("Data: " + intent.get("data", ""), func():
+			editing_field = "data"
+			AndroidInterface.show_text_input("Data URI (empty to remove)", intent.get("data", ""), false)
+		))
 	else:
-		items.append("Add data field")
+		items.append(option.with_callback("Add data field", func():
+			editing_field = "data"
+			AndroidInterface.show_text_input("Data URI", "{game}", false)
+		))
 	if intent.has("providedFile"):
-		items.append("File: " + intent.get("providedFile", ""))
+		items.append(option.with_callback("File: " + intent.get("providedFile", ""), func():
+			editing_field = "file"
+			AndroidInterface.show_text_input("File path (empty to remove)", intent.get("providedFile", ""), false)
+		))
 	else:
-		items.append("Add file field")
+		items.append(option.with_callback("Add file field", func():
+			editing_field = "file"
+			AndroidInterface.show_text_input("File path", "{game}", false)
+		))
 	var flags = intent.get("flags", [])
-	if flags.is_empty():
-		items.append("Flags: (default)")
-	else:
-		items.append("Flags: " + ", ".join(flags))
+	var flags_label = "Flags: " + (", ".join(flags) if not flags.is_empty() else "(default)")
+	items.append(option.with_callback(flags_label, func():
+		editing_field = "flags"
+		AndroidInterface.show_text_input("Flags (comma-separated, empty for default)", ", ".join(intent.get("flags", [])), false)
+	))
 	var extras = intent.get("extras", {})
 	for key in extras:
-		items.append(key + " = " + str(extras.get(key, "")))
-	items.append("Add extra")
-	items.append("Delete intent")
-	items.append("Done")
+		var extra_key = key
+		items.append(option.with_callback(extra_key + " = " + str(extras.get(extra_key, "")), func():
+			editing_field = "extra_" + extra_key
+			AndroidInterface.show_text_input(extra_key + " (empty to remove)", intent.get("extras", {}).get(extra_key, ""), false)
+		))
+	items.append(option.with_callback("Add extra", func():
+		editing_field = "add_extra_key"
+		AndroidInterface.show_text_input("Extra key name", "", false)
+	))
+	items.append(option.with_callback("Delete intent", func():
+		Global.clear_visible("Delete " + intent_name + "?", [
+			option.with_callback("Yes", func(): delete_intent(); Navigator.pop()),
+			option.with_callback("Cancel", populate_content),
+		])
+	))
+	items.append(option.with_callback("Done", func(): Navigator.pop()))
 	Global.clear_visible(intent_name, items)
 
 func _on_text_input(text: String):
@@ -141,52 +175,8 @@ func _on_text_input(text: String):
 
 func _process(_delta):
 	if Global.confirm_pressed():
-		var sel = Global.get_selected().clean
-		var sel_lower = sel.to_lower()
-
-		if sel_lower.begins_with("action: "):
-			editing_field = "action"
-			AndroidInterface.show_text_input("Action", intent.get("action", ""), false)
-		elif sel_lower.begins_with("package: "):
-			editing_field = "package"
-			AndroidInterface.show_text_input("Package", intent.get("componentPackage", ""), false)
-		elif sel_lower.begins_with("class: "):
-			editing_field = "class"
-			AndroidInterface.show_text_input("Activity class", intent.get("componentClass", ""), false)
-		elif sel_lower.begins_with("data: "):
-			editing_field = "data"
-			AndroidInterface.show_text_input("Data URI (empty to remove)", intent.get("data", ""), false)
-		elif sel_lower == "add data field":
-			editing_field = "data"
-			AndroidInterface.show_text_input("Data URI", "{game}", false)
-		elif sel_lower.begins_with("file: "):
-			editing_field = "file"
-			AndroidInterface.show_text_input("File path (empty to remove)", intent.get("providedFile", ""), false)
-		elif sel_lower == "add file field":
-			editing_field = "file"
-			AndroidInterface.show_text_input("File path", "{game}", false)
-		elif sel_lower.begins_with("flags: "):
-			editing_field = "flags"
-			var current = ", ".join(intent.get("flags", []))
-			AndroidInterface.show_text_input("Flags (comma-separated, empty for default)", current, false)
-		elif " = " in sel:
-			# Use raw sel so extras key preserves its original case (e.g. "ROM", "LIBRETRO")
-			var eq_pos = sel.find(" = ")
-			var extra_key = sel.left(eq_pos)
-			editing_field = "extra_" + extra_key
-			AndroidInterface.show_text_input(extra_key + " (empty to remove)", intent.get("extras", {}).get(extra_key, ""), false)
-		elif sel_lower == "add extra":
-			editing_field = "add_extra_key"
-			AndroidInterface.show_text_input("Extra key name", "", false)
-		elif sel_lower == "delete intent":
-			Global.clear_visible("Delete " + intent_name + "?", ["Yes", "Cancel"])
-		elif sel_lower == "yes":
-			delete_intent()
-			Navigator.pop()
-		elif sel_lower == "cancel":
-			populate_content()
-		elif sel_lower == "done":
-			Navigator.pop()
+		var selected = Global.get_selected()
+		selected.trigger(Actions.CONFIRM)
 
 	if Global.back_pressed():
 		Navigator.pop()

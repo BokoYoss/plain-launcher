@@ -12,20 +12,27 @@ func _ready():
 	populate_content()
 
 func populate_content():
-	var ss_available = Settings.get_setting(Settings.CFG_SS_DEVID) != ""
+	var ss_available = Settings.get_setting(Settings.CFG_SCREENSCRAPER_URL) != ""
 	var items = []
 
 	if ss_available:
 		var user = Settings.get_setting(Settings.CFG_SS_USER)
-		items.append("ScreenScraper Username: " + (user if user != "" else "(not set)"))
-		items.append("ScreenScraper Password: " + ("(set)" if Settings.get_setting(Settings.CFG_SS_PASS) != "" else "(not set)"))
+		items.append(option.with_callback("ScreenScraper Username: " + (user if user != "" else "(not set)"), func():
+			pending_field = "username"
+			AndroidInterface.show_text_input("ScreenScraper Username", Settings.get_setting(Settings.CFG_SS_USER), false)
+		))
+		items.append(option.with_callback("ScreenScraper Password: " + ("(set)" if Settings.get_setting(Settings.CFG_SS_PASS) != "" else "(not set)"), func():
+			pending_field = "password"
+			AndroidInterface.show_text_input("ScreenScraper Password", "", true)
+		))
 	else:
 		items.append("ScreenScraper: (unavailable in this build)")
 
-	var key = Settings.get_setting(Settings.CFG_SGDB_KEY)
-	items.append("SteamGridDB API Key: " + ("(set)" if key != "" else "(not set)"))
-
-	items.append("Done")
+	items.append(option.with_callback("SteamGridDB API Key: " + ("(set)" if Settings.get_setting(Settings.CFG_SGDB_KEY) != "" else "(not set)"), func():
+		pending_field = "sgdb_key"
+		AndroidInterface.show_text_input("SteamGridDB API Key", "", true)
+	))
+	items.append(option.with_callback("Done", func(): Navigator.pop()))
 	Global.clear_visible("Scraper Settings", items)
 
 func _on_text_input(text: String):
@@ -46,34 +53,21 @@ func validate_sgdb_key(key: String):
 	var err = http.request(SGDB_VALIDATE_URL, ["Authorization: Bearer " + key])
 	if err != OK:
 		pending_field = ""
-		Global.clear_visible("Could not reach SteamGridDB.", ["OK"])
+		Global.clear_visible("Could not reach SteamGridDB.", [option.with_callback("OK", populate_content)])
 		return
 	var args = await http.request_completed
 	var response_code = args[1]
 	pending_field = ""
 	if response_code == 200:
-		Global.clear_visible("API key is valid!", ["OK"])
+		Global.clear_visible("API key is valid!", [option.with_callback("OK", populate_content)])
 	elif response_code == 401 or response_code == 403:
 		Settings.store(Settings.CFG_SGDB_KEY, "")
-		Global.clear_visible("Invalid API key — not saved.", ["OK"])
+		Global.clear_visible("Invalid API key — not saved.", [option.with_callback("OK", populate_content)])
 	else:
-		Global.clear_visible("Unexpected response (HTTP " + str(response_code) + ").", ["OK"])
+		Global.clear_visible("Unexpected response (HTTP " + str(response_code) + ").", [option.with_callback("OK", populate_content)])
 
 func _process(_delta):
 	if Global.confirm_pressed():
-		var selected = Global.get_selected().clean.to_lower()
-		if "screenscraper username" in selected:
-			pending_field = "username"
-			AndroidInterface.show_text_input("ScreenScraper Username", Settings.get_setting(Settings.CFG_SS_USER), false)
-		elif "screenscraper password" in selected:
-			pending_field = "password"
-			AndroidInterface.show_text_input("ScreenScraper Password", "", true)
-		elif "steamgriddb api key" in selected:
-			pending_field = "sgdb_key"
-			AndroidInterface.show_text_input("SteamGridDB API Key", "", true)
-		elif "ok" in selected:
-			populate_content()
-		elif selected == "done":
-			Navigator.pop()
+		Global.get_selected().trigger(Actions.CONFIRM)
 	if Global.back_pressed():
 		Navigator.pop()
