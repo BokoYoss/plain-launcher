@@ -62,13 +62,13 @@ func validate_sgdb_key(key: String):
 func _process(_delta):
 	if Global.confirm_pressed():
 		var selected = Global.get_selected().clean.to_lower()
-		if "ss username" in selected:
+		if "screenscraper username" in selected:
 			pending_field = "username"
 			AndroidInterface.show_text_input("ScreenScraper Username", Settings.get_setting(Settings.CFG_SS_USER), false)
-		elif "ss password" in selected:
+		elif "screenscraper password" in selected:
 			pending_field = "password"
 			AndroidInterface.show_text_input("ScreenScraper Password", "", true)
-		elif "sgdb api key" in selected:
+		elif "steamgriddb api key" in selected:
 			pending_field = "sgdb_key"
 			AndroidInterface.show_text_input("SteamGridDB API Key", "", true)
 		elif "ok" in selected:

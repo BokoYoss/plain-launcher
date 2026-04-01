@@ -233,13 +233,14 @@ func find_art_url_ss(game) -> String:
 	while true:
 		var url = (SS_API_BASE
 			+ "?devid=" + ss_devid.uri_encode()
-			+ "&devpassword=" + ss_devpass.uri_encode()
 			+ "&softname=" + ss_soft_name.uri_encode()
 			+ "&output=json"
 			+ "&ssid=" + ss_user.uri_encode()
 			+ "&sspassword=" + ss_pass.uri_encode()
 			+ "&systemeid=" + str(system_id)
 			+ "&romnom=" + game.filename.uri_encode())
+		if ss_devpass != "":
+			url += "&devpassword=" + ss_devpass.uri_encode()
 
 		var err = http_search.request(url)
 		if err != OK:
