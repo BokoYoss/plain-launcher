@@ -2,6 +2,9 @@ extends Node2D
 
 var _plugin_name = "PlainLauncherPlugin"
 var _android_plugin
+var _on_storage_selected = Callable()
+var _on_storage_failure = Callable()
+var _on_text_input = Callable()
 
 func _ready():
 	if Engine.has_singleton(_plugin_name):
@@ -13,25 +16,22 @@ func _ready():
 	else:
 		printerr("Couldn't find plugin " + _plugin_name)
 
-signal configured_storage(selection)
-signal configure_storage_failure(message)
 signal got_image(path)
 signal failure_to_launch(message)
-signal text_input_complete(text)
 
 func failed_to_launch(message):
 	if Global.pending_game != "":
-		Navigator.push("failure_screen")
+		Global.show_launch_failure(str(message))
 
 func image_downloaded(path):
 	print("IMAGE DOWNLOADED: " + path)
 	emit_signal("got_image", path)
 
-func storage_selection(selection: String):
+func storage_selection(selection):
 	# Do some cleanup of Android's URIs- this is probably brittle
 	var storage_path
-	if selection == "NOT_FOUND":
-		emit_signal("configure_storage_failure", selection)
+	if selection == null or selection == "" or selection == "NOT_FOUND" or selection == "FAILURE":
+		_finish_storage_request(_on_storage_failure, selection)
 		return
 	if selection.begins_with("/mnt"):
 		storage_path = selection.replace("/mnt/media_rw", "/storage")
@@ -44,18 +44,31 @@ func storage_selection(selection: String):
 		var card_path = split_path[0].replace("/tree/", "").replace("/storage/", "")
 		var external_path = ":".join(split_path.slice(1, split_path.size()))
 		storage_path = "/storage/" + card_path + "/" + external_path
-	emit_signal("configured_storage", storage_path)
+	_finish_storage_request(_on_storage_selected, storage_path)
 
-func choose_storage_directory():
+func _finish_storage_request(callback: Callable, value):
+	_on_storage_selected = Callable()
+	_on_storage_failure = Callable()
+	if callback.is_valid():
+		callback.call(value)
+
+func request_storage(on_selected: Callable, on_failure: Callable):
+	_on_storage_selected = on_selected
+	_on_storage_failure = on_failure
+
+func choose_storage_directory(on_selected: Callable, on_failure: Callable):
 	print("Opening storage dialogue..")
+	request_storage(on_selected, on_failure)
 	_android_plugin.chooseStorageDirectory()
 
-func create_internal_storage():
+func create_internal_storage(on_selected: Callable, on_failure: Callable):
 	print("Creating internal storage..")
+	request_storage(on_selected, on_failure)
 	_android_plugin.createStorage("internal")
 
-func create_external_storage():
+func create_external_storage(on_selected: Callable, on_failure: Callable):
 	print("Creating external storage..")
+	request_storage(on_selected, on_failure)
 	_android_plugin.createStorage("external")
 
 func has_file_permissions():
@@ -73,10 +86,6 @@ func launch_intent(serialized_intent: String):
 	print("Trying to launch [intent]:" + serialized_intent)
 	return _android_plugin.launchIntent(serialized_intent)
 
-func launch_default_app(category: String):
-	Global.store_positions_files()
-	return _android_plugin.launchDefaultApp(category)
-
 func look_for_art_web(game: String, system: String, source: String):
 	print("Opening in-app browser for " + game + " (" + system + ") on " + source)
 	return _android_plugin.launchWebImagePicker(game, system, source)
@@ -88,21 +97,26 @@ func look_for_art(game: String, system: String, source: String = "google"):
 func get_app_list():
 	return JSON.parse_string(_android_plugin.getInstalledAppList())
 
-func launch_package(package_name):
+func launch_package(package_name) -> String:
 	Global.store_positions_files()
 	print("Trying to launch package " + str(package_name))
-	_android_plugin.launchPackage(package_name)
+	var result = _android_plugin.launchPackage(package_name)
+	return "" if result == null else result
 
 func app_settings(package_name):
 	Global.store_positions_files()
 	print("Opening settings for " + str(package_name))
 	_android_plugin.openAppSpecificSettings(package_name)
 
-func show_text_input(prompt: String, current_value: String, is_password: bool):
+func show_text_input(prompt: String, current_value: String, is_password: bool, on_complete: Callable):
+	_on_text_input = on_complete
 	_android_plugin.showTextInput(prompt, current_value, is_password)
 
 func _on_text_input_complete(text: String):
-	emit_signal("text_input_complete", text)
+	var callback = _on_text_input
+	_on_text_input = Callable()
+	if callback.is_valid():
+		callback.call(text)
 
 func choose_file():
 	_android_plugin.chooseFile()

@@ -1,0 +1,16 @@
+{
+	"componentPackage": "com.winnative.cmod",
+	"componentClass": "com.winlator.cmod.runtime.display.XServerDisplayActivity",
+	"flags": [
+		"FLAG_ACTIVITY_CLEAR_TASK",
+		"FLAG_ACTIVITY_CLEAR_TOP"
+	],
+	"extras": {
+		"shortcut_path": "{game}"
+	},
+	"systems": [
+		"STEAM",
+		"EPIC",
+		"WINDOWS"
+	]
+}

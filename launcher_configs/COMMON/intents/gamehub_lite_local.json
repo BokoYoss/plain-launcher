@@ -1,0 +1,12 @@
+{
+	"action": "gamehub.lite.LAUNCH_GAME",
+	"componentPackage": "emuready.gamehub.lite",
+	"componentClass": "com.xj.landscape.launcher.ui.gamedetail.GameDetailActivity",
+	"extras": {
+		"autoStartGame": true,
+		"localGameId": "{game_contents}"
+	},
+	"systems": [
+		"STEAM"
+	]
+}

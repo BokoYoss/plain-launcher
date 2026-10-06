@@ -1,0 +1,11 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "org.devmiyax.yabasanshioro2.pro",
+	"componentClass": "org.devmiyax.yabasanshioro2.pro.org.uoyabause.android.Yabause",
+	"extras": {
+		"org.uoyabause.android.FileNameEx": "{game}"
+	},
+	"systems": [
+		"SATURN"
+	]
+}

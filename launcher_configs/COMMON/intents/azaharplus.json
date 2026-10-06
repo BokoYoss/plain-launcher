@@ -1,0 +1,12 @@
+{
+	"componentPackage": "io.github.azaharplus.android",
+	"componentClass": "org.citra.citra_emu.activities.EmulationActivity",
+	"data": "{game_saf}",
+	"flags": [
+		"FLAG_ACTIVITY_CLEAR_TASK",
+		"FLAG_ACTIVITY_CLEAR_TOP"
+	],
+	"systems": [
+		"N3DS"
+	]
+}

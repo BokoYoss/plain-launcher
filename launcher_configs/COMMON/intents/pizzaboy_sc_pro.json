@@ -1,0 +1,16 @@
+{
+	"componentPackage": "it.dbtecno.pizzaboyscpro",
+	"componentClass": "it.dbtecno.pizzaboyscpro.MainActivity",
+	"flags": [
+		"FLAG_ACTIVITY_CLEAR_TASK",
+		"FLAG_ACTIVITY_CLEAR_TOP"
+	],
+	"extras": {
+		"rom_uri": "{game_saf}"
+	},
+	"systems": [
+		"GENESIS",
+		"MASTERSYSTEM",
+		"SEGACD"
+	]
+}

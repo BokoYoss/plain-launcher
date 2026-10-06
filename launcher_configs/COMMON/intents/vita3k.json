@@ -1,0 +1,13 @@
+{
+	"componentPackage": "org.vita3k.emulator",
+	"componentClass": "org.vita3k.emulator.Emulator",
+	"extras": {
+		"AppStartParameters": [
+			"-r",
+			"{game_contents}"
+		]
+	},
+	"systems": [
+		"PSVITA"
+	]
+}

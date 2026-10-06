@@ -1,0 +1,14 @@
+{
+	"componentPackage": "it.dbtecno.pizzaboygba",
+	"componentClass": "it.dbtecno.pizzaboygba.MainActivity",
+	"flags": [
+		"FLAG_ACTIVITY_CLEAR_TASK",
+		"FLAG_ACTIVITY_CLEAR_TOP"
+	],
+	"extras": {
+		"rom_uri": "{game_saf}"
+	},
+	"systems": [
+		"GBA"
+	]
+}

@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "com.emulator.fpse64",
+	"componentClass": "com.emulator.fpse64.Main",
+	"providedFile": "{game}",
+	"systems": [
+		"PS"
+	]
+}

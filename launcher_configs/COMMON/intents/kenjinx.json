@@ -1,0 +1,11 @@
+{
+	"action": "org.kenjinx.android.LAUNCH_GAME",
+	"componentPackage": "org.kenjinx.android",
+	"componentClass": "org.kenjinx.android.MainActivity",
+	"extras": {
+		"bootPath": "{game_saf}"
+	},
+	"systems": [
+		"SWITCH"
+	]
+}

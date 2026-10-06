@@ -1,11 +1,10 @@
-class_name option extends Node
+class_name option extends RefCounted
 
 var clean: String = ""
 var filename: String = ""
 var absolute_path: String = ""
 var system: String = ""
 var image_path: String = ""
-var favorite_dir = false
 var is_dir = false
 var callbacks: Dictionary = {}
 

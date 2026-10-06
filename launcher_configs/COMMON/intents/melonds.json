@@ -1,0 +1,9 @@
+{
+	"action": "me.magnum.melonds.LAUNCH_ROM",
+	"componentPackage": "me.magnum.melonds",
+	"componentClass": "me.magnum.melonds.ui.emulator.EmulatorActivity",
+	"providedFile": "{game}",
+	"systems": [
+		"NDS"
+	]
+}

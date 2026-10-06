@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "com.reicast.emulator",
+	"componentClass": "com.reicast.emulator.MainActivity",
+	"data": "{game}",
+	"systems": [
+		"DREAMCAST"
+	]
+}

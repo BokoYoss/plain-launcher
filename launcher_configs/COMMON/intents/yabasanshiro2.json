@@ -1,0 +1,15 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "org.devmiyax.yabasanshioro2",
+	"componentClass": "org.uoyabause.android.Yabause",
+	"flags": [
+		"FLAG_ACTIVITY_CLEAR_TASK",
+		"FLAG_ACTIVITY_CLEAR_TOP"
+	],
+	"extras": {
+		"org.uoyabause.android.FileNameUri": "{game_saf}"
+	},
+	"systems": [
+		"SATURN"
+	]
+}

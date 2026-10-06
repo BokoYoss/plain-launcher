@@ -1,0 +1,14 @@
+{
+	"componentPackage": "com.winlator.cmod",
+	"componentClass": "com.winlator.cmod.XServerDisplayActivity",
+	"flags": [
+		"FLAG_ACTIVITY_CLEAR_TASK",
+		"FLAG_ACTIVITY_CLEAR_TOP"
+	],
+	"extras": {
+		"shortcut_path": "{game}"
+	},
+	"systems": [
+		"WINDOWS"
+	]
+}

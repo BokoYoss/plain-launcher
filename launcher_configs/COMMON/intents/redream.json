@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "io.recompiled.redream",
+	"componentClass": "io.recompiled.redream.MainActivity",
+	"data": "{game}",
+	"systems": [
+		"DREAMCAST"
+	]
+}

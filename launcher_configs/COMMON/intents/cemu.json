@@ -1,0 +1,8 @@
+{
+	"componentPackage": "info.cemu.cemu",
+	"componentClass": "info.cemu.cemu.emulation.EmulationActivity",
+	"data": "{game_saf}",
+	"systems": [
+		"WIIU"
+	]
+}

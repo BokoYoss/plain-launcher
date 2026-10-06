@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "com.fastemulator.gba",
+	"componentClass": "com.fastemulator.gba.GBAActivity",
+	"data": "{game}",
+	"systems": [
+		"GBA"
+	]
+}

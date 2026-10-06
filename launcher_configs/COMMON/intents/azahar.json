@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "io.github.lime3ds.android",
+	"componentClass": "org.citra.citra_emu.activities.EmulationActivity",
+	"providedFile": "{game}",
+	"systems": [
+		"N3DS"
+	]
+}

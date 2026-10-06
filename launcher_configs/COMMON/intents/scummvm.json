@@ -1,0 +1,6 @@
+{
+	"action": "android.intent.action.MAIN",
+	"componentPackage": "org.scummvm.scummvm",
+	"componentClass": "org.scummvm.scummvm.ScummVMActivity",
+	"systems": []
+}

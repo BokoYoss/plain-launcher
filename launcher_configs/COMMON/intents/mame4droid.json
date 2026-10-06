@@ -1,0 +1,13 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "com.seleuco.mame4d2024",
+	"componentClass": "com.seleuco.mame4droid.MAME4droid",
+	"providedFile": "{game}",
+	"extras": {
+		"cli_params": "-rompath '{game_dir}'"
+	},
+	"systems": [
+		"ARCADE",
+		"NEOGEO"
+	]
+}

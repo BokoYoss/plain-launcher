@@ -1,0 +1,15 @@
+{
+	"action": "android.intent.action.MAIN",
+	"componentPackage": "xyz.aethersx2.tturnip",
+	"componentClass": "xyz.aethersx2.android.EmulationActivity",
+	"flags": [
+		"FLAG_ACTIVITY_CLEAR_TASK",
+		"FLAG_ACTIVITY_CLEAR_TOP"
+	],
+	"extras": {
+		"bootPath": "{game_saf}"
+	},
+	"systems": [
+		"PS2"
+	]
+}

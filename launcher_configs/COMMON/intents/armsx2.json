@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "come.nanodata.armsx2",
+	"componentClass": "com.armsx2.MainActivity",
+	"data": "{game_saf}",
+	"systems": [
+		"PS2"
+	]
+}

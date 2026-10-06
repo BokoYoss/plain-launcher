@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "com.dsemu.drastic",
+	"componentClass": "com.dsemu.drastic.DraSticActivity",
+	"data": "{game}",
+	"systems": [
+		"NDS"
+	]
+}

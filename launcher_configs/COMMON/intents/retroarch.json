@@ -1,0 +1,33 @@
+{
+	"action": "android.intent.action.MAIN",
+	"componentPackage": "com.retroarch",
+	"componentClass": "com.retroarch.browser.retroactivity.RetroActivityFuture",
+	"extras": {
+		"ROM": "{game}",
+		"LIBRETRO": "{data_dir}/cores/{core}_libretro_android.so",
+		"CONFIGFILE": "{external_storage}/Android/data/{package}/files/retroarch.cfg"
+	},
+	"systems": [
+		"ARCADE",
+		"DOOM",
+		"DREAMCAST",
+		"GB",
+		"GBA",
+		"GBC",
+		"GENESIS",
+		"MASTERSYSTEM",
+		"N3DS",
+		"N64",
+		"NDS",
+		"NEOGEO",
+		"NES",
+		"NGP",
+		"PCE",
+		"PS",
+		"PSP",
+		"QUAKE",
+		"SATURN",
+		"SEGACD",
+		"SNES"
+	]
+}

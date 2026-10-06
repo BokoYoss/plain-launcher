@@ -1,0 +1,11 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "org.citra.emu",
+	"componentClass": "org.citra.emu.ui.EmulationActivity",
+	"extras": {
+		"GamePath": "{game}"
+	},
+	"systems": [
+		"N3DS"
+	]
+}

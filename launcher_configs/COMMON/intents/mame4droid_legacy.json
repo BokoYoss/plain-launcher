@@ -1,0 +1,10 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "com.seleuco.mame4droid",
+	"componentClass": "com.seleuco.mame4droid.MAME4droid",
+	"providedFile": "{game}",
+	"systems": [
+		"ARCADE",
+		"NEOGEO"
+	]
+}

@@ -1,0 +1,12 @@
+{
+	"componentPackage": "io.github.mandarine3ds.mandarine",
+	"componentClass": "io.github.mandarine3ds.mandarine.activities.EmulationActivity",
+	"data": "{game_saf}",
+	"flags": [
+		"FLAG_ACTIVITY_CLEAR_TASK",
+		"FLAG_ACTIVITY_CLEAR_TOP"
+	],
+	"systems": [
+		"N3DS"
+	]
+}

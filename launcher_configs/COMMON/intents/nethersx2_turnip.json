@@ -1,0 +1,11 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "xyz.aethersx2.cturnip",
+	"componentClass": "xyz.aethersx2.android.EmulationActivity",
+	"extras": {
+		"bootPath": "{game}"
+	},
+	"systems": [
+		"PS2"
+	]
+}

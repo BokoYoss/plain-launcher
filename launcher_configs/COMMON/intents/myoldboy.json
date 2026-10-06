@@ -1,0 +1,10 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "com.fastemulator.gbc",
+	"componentClass": "com.fastemulator.gbc.GBCActivity",
+	"data": "{game}",
+	"systems": [
+		"GB",
+		"GBC"
+	]
+}

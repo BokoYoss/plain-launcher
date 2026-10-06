@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "com.virtualapplications.play",
+	"componentClass": "com.virtualapplications.play.MainActivity",
+	"data": "{game_saf}",
+	"systems": [
+		"PS2"
+	]
+}

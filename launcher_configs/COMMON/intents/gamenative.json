@@ -1,0 +1,15 @@
+{
+	"action": "app.gamenative.LAUNCH_GAME",
+	"componentPackage": "app.gamenative",
+	"componentClass": "app.gamenative.MainActivity",
+	"extras": {
+		"game_source": "STEAM",
+		"app_id": {
+			"type": "int",
+			"value": "{game_contents}"
+		}
+	},
+	"systems": [
+		"STEAM"
+	]
+}

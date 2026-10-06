@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "skyline.emu",
+	"componentClass": "emu.skyline.EmulationActivity",
+	"providedFile": "{game}",
+	"systems": [
+		"SWITCH"
+	]
+}

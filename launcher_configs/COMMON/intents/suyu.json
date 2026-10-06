@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "dev.suyu.suyu_emu",
+	"componentClass": "dev.suyu.suyu_emu.activities.EmulationActivity",
+	"providedFile": "{game}",
+	"systems": [
+		"SWITCH"
+	]
+}

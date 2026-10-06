@@ -1,0 +1,16 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "com.sky.SkyEmu",
+	"componentClass": "com.sky.SkyEmu.EnhancedNativeActivity",
+	"providedFile": "{game}",
+	"flags": [
+		"FLAG_ACTIVITY_CLEAR_TASK",
+		"FLAG_ACTIVITY_CLEAR_TOP"
+	],
+	"systems": [
+		"GB",
+		"GBA",
+		"GBC",
+		"NDS"
+	]
+}

@@ -5,6 +5,7 @@ var window_width = 0
 var title_offset = 0
 
 var root_path = ""
+var waiting_root_path = ""
 
 const PATH_CONFIG = "/Config/"
 const PATH_GAMES = "/Games/"
@@ -21,10 +22,10 @@ var current_directory = ""
 var pending_intent = ""
 var pending_game = ""
 var pending_launch = ""
+var last_launch = {}
 var last_subscreen = ""
 var can_scroll = true
 var failure_message = ""
-var alt_art_path = ""
 
 var title: Label = null
 var message: Label = null
@@ -57,6 +58,7 @@ const SCREEN_HUGE = 2.0
 var subscreen = null
 var show_hidden = false
 var title_can_be_blank = false
+var title_collapsed = false
 
 var disable_scroll := false
 
@@ -65,12 +67,10 @@ var frame = 0
 var _analog_left_just: bool = false
 var _analog_right_just: bool = false
 
-const OPTIONS_MAKER = preload("res://scenes/option.tscn")
-@onready var null_option = OPTIONS_MAKER.instantiate()
+var null_option = option.new()
 var clean_regex = null
 var normalize_regex = null
 
-var color_picker = "background"
 @onready var BACKDROP = $ColorRect
 
 var current_msg = ""
@@ -83,8 +83,6 @@ var fav_indicators = []
 
 var no_alias = false
 var confirm_swapped = false
-var setting_subscreen = ""
-var android_subscreen = null
 var special_item = null
 
 # For touch controls
@@ -102,10 +100,6 @@ var pending_special = false
 var pending_back = false
 
 # Generic checkbox selector state
-var selector_title: String = ""
-var selector_items: Array = []
-var selector_active: Array = []
-var selector_multi: bool = true
 var waiting_for_confirm_release: bool = false
 var control_tilt: Vector2 = Vector2.ZERO
 var tilt_ratio = 0
@@ -124,10 +118,17 @@ var populate_filter = null
 
 # Directory listing cache: { "path|dirs_only" -> PackedStringArray }
 var _dir_cache: Dictionary = {}
+var _missing_dirs: Dictionary = {}
+var _prewarm_task = -1
+var _prewarm_done = false
 
 func clear_dir_cache():
 	print("DIR CACHE: cleared (" + str(_dir_cache.size()) + " entries)")
 	_dir_cache.clear()
+	_missing_dirs.clear()
+	_prewarm_done = false
+	_art_missing.clear()
+	Launcher.forget_intents()
 
 func _read_dir_uncached(directory: DirAccess, dirs_only: bool) -> PackedStringArray:
 	var file_names: PackedStringArray = []
@@ -153,15 +154,21 @@ func _read_dir_cached(directory: DirAccess, dirs_only: bool) -> PackedStringArra
 	_dir_cache[cache_key] = result
 	return result
 
-func _dir_has_files(path: String) -> bool:
+static func is_game_file(filename: String, extensions) -> bool:
+	return extensions == null or filename.get_extension() in extensions
+
+func _dir_has_files(path: String, extensions = null) -> bool:
+	if _missing_dirs.has(path):
+		return false
 	var dir = DirAccess.open(path)
 	if dir == null:
+		_missing_dirs[path] = true
 		return false
 	dir.list_dir_begin()
 	var found = false
 	var entry = dir.get_next()
 	while entry != "":
-		if not dir.current_is_dir():
+		if not dir.current_is_dir() and is_game_file(entry, extensions):
 			found = true
 			break
 		entry = dir.get_next()
@@ -176,7 +183,7 @@ func _get_all_system_paths(system_name: String) -> Array:
 			path = path.strip_edges()
 			if path != "":
 				paths.append(path)
-	var compat_file = root_path + PATH_CONFIG + system_name + "/compatibility_paths.txt"
+	var compat_file = get_compat_paths_filepath(system_name)
 	if FileAccess.file_exists(compat_file) and OS.get_name() == "Android":
 		var external_path = AndroidInterface.get_external_storage_path()
 		if external_path != null:
@@ -186,10 +193,44 @@ func _get_all_system_paths(system_name: String) -> Array:
 	return paths
 
 func _system_has_games(system_name: String) -> bool:
+	var extensions = get_system_settings(system_name).get("EXTENSIONS")
 	for path in _get_all_system_paths(system_name):
-		if _dir_has_files(path):
+		if _dir_has_files(path, extensions):
 			return true
 	return false
+
+func prewarm_dir_cache(systems: PackedStringArray):
+	if _prewarm_task >= 0 or _prewarm_done:
+		return
+	var paths = []
+	for system in systems:
+		paths.append_array(_get_all_system_paths(system))
+	_prewarm_task = WorkerThreadPool.add_task(_read_dirs.bind(paths))
+
+static func read_dir_listings(paths: Array) -> Dictionary:
+	var listings = {}
+	for path in paths:
+		var dir = DirAccess.open(path)
+		listings[path] = null if dir == null else {"key": dir.get_current_dir() + "|false", "files": dir.get_files()}
+	return listings
+
+func _read_dirs(paths: Array):
+	_on_dirs_read.call_deferred(read_dir_listings(paths))
+
+func _on_dirs_read(listings: Dictionary):
+	if _prewarm_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_prewarm_task)
+		_prewarm_task = -1
+	_prewarm_done = true
+	merge_dir_listings(listings)
+
+func merge_dir_listings(listings: Dictionary):
+	for path in listings:
+		var entry = listings[path]
+		if entry == null:
+			_missing_dirs[path] = true
+		elif not _dir_cache.has(entry.key):
+			_dir_cache[entry.key] = entry.files
 
 func get_nonempty_systems() -> PackedStringArray:
 	var cache_key = "_nonempty_systems"
@@ -210,7 +251,172 @@ func get_nonempty_systems() -> PackedStringArray:
 
 var font = null
 
-var VERSION = "28"
+const PromptBar = preload("res://scenes/prompt_bar.gd")
+const SettingsMenu = preload("res://scenes/settings_menu.gd")
+const OptionsMenu = preload("res://scenes/options_menu.gd")
+const FavoriteStarScript = preload("res://scenes/favorite_star.gd")
+const CoverHalo = preload("res://scenes/cover_halo.gd")
+const CLEAN_PATTERN = "\\s*\\(.+\\)\\s*|\\s*\\[.+\\]\\s*|T.Eng+\\$|\\.nkit"
+const COVER_FADE = 0.3
+var cover_halo = null
+const TouchButtons = preload("res://scenes/touch_buttons.gd")
+var touch_buttons = null
+const LetterScroller = preload("res://scenes/letter_scroller.gd")
+var letter_scroller = null
+var settings_panel = null
+var settings_menu = null
+var options_menu = null
+var settings_reopen_section = null
+var force_cover = false
+var header_bar: ColorRect = null
+
+func panel_open() -> bool:
+	return settings_panel != null and settings_panel.is_open
+
+func open_settings(section: String = ""):
+	if settings_menu != null and not panel_open():
+		settings_menu.open(section)
+
+func show_launch_failure(message: String):
+	failure_message = message
+	if settings_menu == null:
+		return
+	if panel_open():
+		settings_panel.close()
+	settings_menu.open_failure()
+
+func open_options(item):
+	if options_menu != null and not panel_open() and item != null:
+		options_menu.open(item)
+
+func resume_settings_panel():
+	if settings_reopen_section != null:
+		var section = settings_reopen_section
+		settings_reopen_section = null
+		open_settings(section)
+
+static func bar_color_for(bar, background: Color) -> Color:
+	return bar if bar is Color else background
+
+func bar_color() -> Color:
+	return bar_color_for(Settings.get_setting(Settings.CFG_BAR_COLOR), Settings.get_setting(Settings.CFG_BG_COLOR))
+
+func layout_header():
+	if header_bar == null or title == null:
+		return
+	header_bar.color = bar_color()
+	header_bar.visible = Settings.get_setting(Settings.CFG_BAR_COLOR) is Color
+	header_bar.position = Vector2.ZERO
+	header_bar.size = Vector2(window_width, maxf(0.0, title.position.y + title.size.y))
+
+func apply_visual_change():
+	BACKDROP.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
+	set_up_slots()
+	title.position.x = left_bound
+	show_options(scroll_offset)
+	set_all_text_color(Settings.get_setting(Settings.CFG_FG_COLOR))
+	highlight_selection(option_selection)
+	refresh_art()
+	refresh_prompt_bar()
+	layout_message()
+
+func select_by_path(path: String, fallback_row: int, previous_offset: int = -1):
+	var index = option_list.find_custom(func(o): return o.absolute_path == path)
+	if index < 0:
+		index = clampi(fallback_row, 0, maxi(0, option_list.size() - 1))
+	if option_list.is_empty():
+		return
+	option_selection = index
+	var offset = previous_offset if previous_offset >= 0 and index >= previous_offset and index < previous_offset + visible_slots.size() else index - visible_slots.size() / 2
+	scroll_offset = clampi(offset, 0, maxi(0, option_list.size() - visible_slots.size()))
+	show_options(scroll_offset)
+	highlight_selection()
+	refresh_art()
+
+func select_by_filename(filename: String):
+	for i in range(option_list.size()):
+		if option_list[i].filename == filename:
+			option_selection = i
+			scroll_offset = clampi(i - visible_slots.size() / 2, 0, maxi(0, option_list.size() - visible_slots.size()))
+			show_options(scroll_offset)
+			highlight_selection(i)
+			refresh_art()
+			return
+
+func refresh_file_cache():
+	var selected = get_selected().filename if not option_list.is_empty() else ""
+	clear_dir_cache()
+	var top = Navigator._stack.back() if not Navigator._stack.is_empty() else null
+	if top != null and top.node.has_method("populate_content"):
+		top.node.populate_content()
+		select_by_filename(selected)
+
+func list_text_width() -> float:
+	return window_width - left_bound * 2.0
+const DEFAULT_PROMPTS = [["confirm", "Select"], ["back", "Back"]]
+var prompt_bar = null
+var prompts: Array = DEFAULT_PROMPTS
+
+const MESSAGE_SCROLL_PAUSE = 1.0
+var message_clip: Control = null
+var message_overflow = 0.0
+var message_scroll_time = 0.0
+var message_scroll_passes = 0
+
+func prompt_text_size() -> int:
+	return text_size_for_scale(prompt_scale)
+
+func title_bar_height() -> float:
+	return prompt_text_size() * 2.0
+
+func text_size_for_scale(scale: float) -> int:
+	return maxi(12, int(scaled_text_height * 0.5 * scale))
+
+static func message_scroll_x(time: float, overflow: float, speed: float, pause: float) -> float:
+	return -clampf((time - pause) * speed, 0.0, overflow)
+
+func layout_message():
+	if message == null or message_clip == null:
+		return
+	var size = prompt_text_size()
+	var row = prompt_bar_height() if prompt_bar_enabled() else scaled_text_height * 0.5
+	var left = left_bound
+	if prompt_bar != null and prompt_bar_enabled() and not prompts.is_empty():
+		left = prompt_bar.content_end() + size
+	var right = window_width - maxf(left_bound, 2.0)
+	message_clip.position = Vector2(left, window_height - row)
+	message_clip.size = Vector2(maxf(0.0, right - left), row)
+	message.set("theme_override_font_sizes/font_size", size)
+	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	message.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	message.autowrap_mode = TextServer.AUTOWRAP_OFF
+	message.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+	var shown = message.text.to_upper() if message.uppercase else message.text
+	var text_width = message.get_theme_font("font").get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	message.size = Vector2(text_width + 1.0, row)
+	message.position.y = 0.0
+	message_overflow = maxf(0.0, text_width - message_clip.size.x)
+	message_scroll_time = 0.0
+	message_scroll_passes = 0
+	message.position.x = 0.0 if message_overflow > 0.0 else message_clip.size.x - text_width
+
+func prompt_bar_enabled() -> bool:
+	return Settings.get_setting(Settings.CFG_VISUAL_PROMPT_BAR)
+
+func prompt_bar_height() -> float:
+	return prompt_text_size() * 2.0 if prompt_bar_enabled() else 0.0
+
+func set_prompts(list: Array):
+	prompts = list
+	if prompt_bar != null:
+		prompt_bar.set_prompts(list)
+	layout_message()
+
+func refresh_prompt_bar():
+	if prompt_bar != null:
+		prompt_bar.queue_redraw()
+
+var VERSION = "29"
 
 # Cover art
 @onready var cover := $BoxContainer
@@ -248,12 +454,12 @@ func _ready():
 	BACKDROP.size = Vector2(window_width, window_height)
 	root_path = Settings.get_setting(Settings.CFG_ROOT)
 	if root_path != null and !DirAccess.dir_exists_absolute(root_path):
+		waiting_root_path = root_path
 		root_path = null
 
 	BACKDROP.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
 
-	clean_regex = RegEx.new()
-	clean_regex.compile("\\s*\\(.+\\)\\s*|\\s*\\[.+\\]\\s*|T.Eng+\\$|\\.nkit")
+	clean_regex = RegEx.create_from_string(CLEAN_PATTERN)
 
 	normalize_regex = RegEx.new()
 	normalize_regex.compile("[^a-z0-9]")
@@ -274,14 +480,9 @@ func _ready():
 	cover.add_child.call_deferred(drop_shadow)
 	cover.add_child.call_deferred(border)
 	cover.add_child.call_deferred(cover_art)
-	cover.position.y = window_height * Settings.get_setting(Settings.CFG_VISUAL_ART_POSITION_Y)
-	cover.position.x = window_width * Settings.get_setting(Settings.CFG_VISUAL_ART_POSITION_X)
+	cover.position = Vector2(window_width, window_height) * cover_anchor()
 
-	var list_file_contents = get_list_file_contents()
-	if not list_file_contents.has("hidden"):
-		list_file_contents["hidden"] = []
-	for item in list_file_contents.get("hidden", []):
-		HIDDEN_LIST[item] = true
+	load_hidden_list()
 
 	if Settings.get_setting(Settings.CFG_CONFIRM_SWAP):
 		swap_confirm_key()
@@ -290,7 +491,40 @@ func _ready():
 
 	get_positions_files()
 
+	header_bar = ColorRect.new()
+	add_child(header_bar)
+	move_child(header_bar, BACKDROP.get_index() + 1)
+	layout_header()
+	letter_scroller = LetterScroller.new()
+	letter_scroller.z_index = 4004
+	letter_scroller.size = Vector2(window_width, window_height)
+	add_child(letter_scroller)
+	touch_buttons = TouchButtons.new()
+	touch_buttons.z_index = 4004
+	touch_buttons.size = Vector2(window_width, window_height)
+	add_child(touch_buttons)
+	prompt_bar = PromptBar.new()
+	prompt_bar.z_index = 4001
+	add_child(prompt_bar)
+	settings_panel = SlidePanel.new()
+	settings_panel.z_index = 4002
+	add_child(settings_panel)
+	settings_menu = SettingsMenu.new(settings_panel)
+	options_menu = OptionsMenu.new(settings_panel)
+	prompt_bar.set_prompts(prompts)
 	show_message("Welcome to PlainLauncher!")
+	Navigator.go_to_main()
+
+func load_hidden_list():
+	HIDDEN_LIST.clear()
+	for item in get_list_file_contents().get("hidden", []):
+		HIDDEN_LIST[item] = true
+
+func storage_ready():
+	print("Storage available at " + waiting_root_path)
+	root_path = waiting_root_path
+	waiting_root_path = ""
+	load_hidden_list()
 	Navigator.go_to_main()
 
 func version_matches():
@@ -362,31 +596,7 @@ func reimport_all_configs():
 func migrate_configs():
 	if root_path == "" or root_path == null:
 		return
-	_migrate_intents()
 	_migrate_choices()
-
-func _migrate_intents():
-	var bundled_path = "res://launcher_configs/COMMON/intents.json"
-	var user_path = root_path + PATH_CONFIG + "COMMON/intents.json"
-	var bundled = JSON.parse_string(FileAccess.get_file_as_string(bundled_path))
-	if bundled == null:
-		return
-	var user_intents = {}
-	if FileAccess.file_exists(user_path):
-		var parsed = JSON.parse_string(FileAccess.get_file_as_string(user_path))
-		if parsed != null:
-			user_intents = parsed
-	var changed = not FileAccess.file_exists(user_path)
-	for key in bundled.keys():
-		if not user_intents.has(key):
-			user_intents[key] = bundled[key]
-			changed = true
-	if changed:
-		DirAccess.make_dir_recursive_absolute(user_path.get_base_dir())
-		var f = FileAccess.open(user_path, FileAccess.WRITE)
-		if f:
-			f.store_string(JSON.stringify(user_intents, "\t"))
-			f.close()
 
 func _migrate_choices():
 	var bundled_base = "res://launcher_configs/"
@@ -398,14 +608,10 @@ func _migrate_choices():
 		if not FileAccess.file_exists(bundled_path):
 			continue
 		var user_path = root_path + PATH_CONFIG + system + "/choices.json"
-		var bundled = JSON.parse_string(FileAccess.get_file_as_string(bundled_path))
-		if bundled == null:
+		var bundled = read_json_dict(bundled_path)
+		if bundled.is_empty():
 			continue
-		var user_choices = {}
-		if FileAccess.file_exists(user_path):
-			var parsed = JSON.parse_string(FileAccess.get_file_as_string(user_path))
-			if parsed != null:
-				user_choices = parsed
+		var user_choices = read_json_dict(user_path)
 		var changed = not FileAccess.file_exists(user_path)
 		for key in bundled.keys():
 			if key.to_upper() == "EXTENSIONS":
@@ -418,24 +624,33 @@ func _migrate_choices():
 					changed = true
 			user_choices[key] = user_arr
 		if changed:
-			DirAccess.make_dir_recursive_absolute(user_path.get_base_dir())
-			var f = FileAccess.open(user_path, FileAccess.WRITE)
-			if f:
-				f.store_string(JSON.stringify(user_choices, "\t"))
-				f.close()
+			write_json(user_path, user_choices)
+
+func read_json_dict(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return parsed if parsed is Dictionary else {}
+
+func read_json_array(path: String) -> Array:
+	if not FileAccess.file_exists(path):
+		return []
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return parsed if parsed is Array else []
+
+func write_json(path: String, data, indent: String = "\t"):
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f = FileAccess.open(path, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(data, indent))
+		f.close()
 
 const RECENT_MAX = 50
 
 func get_recent_list() -> Array:
 	if root_path == null:
 		return []
-	var recent_path = root_path + "/Config/COMMON/recent.json"
-	if not FileAccess.file_exists(recent_path):
-		return []
-	var content = JSON.parse_string(FileAccess.get_file_as_string(recent_path))
-	if content == null or not content is Array:
-		return []
-	return content
+	return read_json_array(root_path + "/Config/COMMON/recent.json")
 
 func log_recent(game_path: String, system: String, display_name: String):
 	if root_path == null:
@@ -452,20 +667,12 @@ func log_recent(game_path: String, system: String, display_name: String):
 	})
 	while recent.size() > RECENT_MAX:
 		recent.pop_back()
-	var f = FileAccess.open(root_path + "/Config/COMMON/recent.json", FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify(recent, "\t"))
-		f.close()
+	write_json(root_path + "/Config/COMMON/recent.json", recent)
 
 func get_list_file_contents():
 	if root_path == null:
 		return {}
-	var list_file = root_path + "/Config/COMMON/lists.json"
-	if FileAccess.file_exists(list_file):
-		var list_file_contents = JSON.parse_string(FileAccess.get_file_as_string(list_file))
-		if list_file_contents != null:
-			return list_file_contents
-	return {}
+	return read_json_dict(root_path + "/Config/COMMON/lists.json")
 
 func get_positions_files():
 	var last_screen = "user://last_screen.txt"
@@ -473,30 +680,23 @@ func get_positions_files():
 	var scroll_offset_file = "user://scroll_offsets.json"
 	if FileAccess.file_exists(last_screen):
 		last_subscreen = FileAccess.get_file_as_string(last_screen)
-	if FileAccess.file_exists(cursor_position_file):
-		cursor_positions = JSON.parse_string(FileAccess.get_file_as_string(cursor_position_file))
-	if FileAccess.file_exists(scroll_offset_file):
-		scroll_offset = JSON.parse_string(FileAccess.get_file_as_string(scroll_offset_file))
+	cursor_positions = read_json_dict(cursor_position_file)
+	scroll_offsets = read_json_dict(scroll_offset_file)
 
 func store_positions_files():
-	var last_screen = "user://last_screen.txt"
-	var cursor_position_file = "user://cursor_positions.json"
-	var scroll_offset_file = "user://scroll_offsets.json"
-	var file = FileAccess.open(last_screen, FileAccess.WRITE)
+	var file = FileAccess.open("user://last_screen.txt", FileAccess.WRITE)
 	file.store_string(Global.subscreen)
 	print("Storing last subscreen as " + Global.subscreen)
-	file = FileAccess.open(cursor_position_file, FileAccess.WRITE)
-	file.store_string(JSON.stringify(cursor_positions, "   "))
-	file = FileAccess.open(scroll_offset_file, FileAccess.WRITE)
-	file.store_string(JSON.stringify(scroll_offset, "   "))
+	store_list_positions()
+
+func store_list_positions():
+	write_json("user://cursor_positions.json", cursor_positions, "   ")
+	write_json("user://scroll_offsets.json", scroll_offsets, "   ")
 
 func update_list_file_contents(key, new_list):
 	var list_file_contents = get_list_file_contents()
 	list_file_contents[key] = new_list
-	var list_file = FileAccess.open(root_path + "/Config/COMMON/lists.json", FileAccess.WRITE)
-	if list_file == null:
-		return
-	list_file.store_string(JSON.stringify(list_file_contents, "   "))
+	write_json(root_path + "/Config/COMMON/lists.json", list_file_contents, "   ")
 
 func resize():
 	window_width = DisplayServer.screen_get_size(DisplayServer.window_get_current_screen()).x
@@ -519,6 +719,56 @@ func load_external_texture(path):
 
 	return image_texture
 
+const CAP_HEIGHT = 0.7
+const PROMPT_BASELINE = 0.35
+const PROMPT_SCALE_MAX = 0.5
+const PROMPT_SCALE_MIN = 0.4
+const PROMPT_SCALE_STEPS = 5
+const LIST_SHRINK_MAX = 0.12
+const LIST_SHRINK_STEPS = 6
+const TOP_GAP = 0.12
+const BOTTOM_GAP = 0.15
+var prompt_scale = PROMPT_SCALE_MAX
+
+static func hug_layout(top_edge: float, bottom_edge: float, step: float, ascent: float, cap: float, below: float, top_gap: float, bottom_gap: float) -> Array:
+	var first_top = top_edge + top_gap - (ascent - cap)
+	var rows = int(floor((bottom_edge - bottom_gap - (first_top + ascent + below)) / step)) + 1
+	return [maxi(1, rows), first_top]
+
+static func better_layout(a: Array, b: Array) -> bool:
+	if a[0] != b[0]:
+		return a[0] > b[0]
+	if not is_equal_approx(a[1], b[1]):
+		return a[1] > b[1]
+	return a[2] > b[2]
+
+func list_layout(text_height: float, scale: float) -> Array:
+	var size = maxi(12, int(text_height * 0.5 * scale))
+	var bar_height = size * 2.0 if prompt_bar_enabled() else 0.0
+	var body_font: Font = font if font != null else $SlotHolder/Body.get_theme_font("font")
+	var list_size = int(text_height / 2.0)
+	var title_height = 0.0 if title_collapsed else size * 2.0
+	var bars = Settings.get_setting(Settings.CFG_BAR_COLOR) is Color
+	var top_edge = 0.0
+	if not title_collapsed:
+		top_edge = Settings.get_setting(Settings.CFG_TOP_MARGIN) + (title_height if bars else (title_height - body_font.get_height(size)) / 2.0 + body_font.get_ascent(size))
+	var bottom_edge = window_height
+	if prompt_bar_enabled():
+		bottom_edge = window_height - bar_height if bars else window_height - bar_height / 2.0 + size * (PROMPT_BASELINE - CAP_HEIGHT)
+	return hug_layout(top_edge, bottom_edge, text_height * 0.5, body_font.get_ascent(list_size), list_size * CAP_HEIGHT, body_font.get_descent(list_size), text_height * TOP_GAP, text_height * BOTTOM_GAP)
+
+func choose_text_sizes(base_height: float) -> Array:
+	var best = []
+	for shrink_index in range(LIST_SHRINK_STEPS + 1):
+		var factor = 1.0 - LIST_SHRINK_MAX * shrink_index / float(LIST_SHRINK_STEPS)
+		for scale_index in range(PROMPT_SCALE_STEPS + 1):
+			var scale = PROMPT_SCALE_MAX - (PROMPT_SCALE_MAX - PROMPT_SCALE_MIN) * scale_index / float(PROMPT_SCALE_STEPS)
+			var layout = list_layout(base_height * factor, scale)
+			var candidate = [layout[0], factor, scale, layout[1]]
+			if best.is_empty() or better_layout(candidate, best):
+				best = candidate
+	return best
+
 func set_up_slots():
 	scaled_text_height = default_text_height * Settings.get_setting(Settings.CFG_SCALER)
 
@@ -526,28 +776,36 @@ func set_up_slots():
 	left_bound = Settings.get_setting(Settings.CFG_LEFT_MARGIN)
 	title = $SlotHolder/Title
 	title.size.x = Global.window_width - left_bound * 2
-	title.size.y = 0
+	title.size.y = title_bar_height()
 	title.horizontal_alignment = Settings.get_setting(Settings.CFG_VISUAL_TITLE_ORIENTATION)
 	title.add_theme_constant_override("outline_size", outline_thickness)
 	title.position.y = Settings.get_setting(Settings.CFG_TOP_MARGIN)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title.position.x = 0
 	title.uppercase = true
-	title.set("theme_override_font_sizes/font_size", scaled_text_height * Settings.get_setting(Settings.CFG_TITLE_SIZE))
-	title.size.y = 0
-	if title_can_be_blank and title.text == "":
-		title.position.y -= title.size.y
-
-	var slot_start = title.position.y + (title.size.y * title.scale.y) - scaled_text_height / 2.0
+	title_collapsed = title_can_be_blank and title.text == ""
+	var sizes = choose_text_sizes(scaled_text_height)
+	scaled_text_height *= sizes[1]
+	prompt_scale = sizes[2]
+	title.set("theme_override_font_sizes/font_size", prompt_text_size())
+	title.size.y = title_bar_height()
+	if title_collapsed:
+		title.position.y = Settings.get_setting(Settings.CFG_TOP_MARGIN) - title.size.y
 
 	#print("TITLE TEXT: " + title.text + "TITLE SIZE: " + str(title.size.y * title.scale.y) + " SLOT START: " + str(slot_start))
 
 	if message != null:
 		message.queue_free()
 	message = $SlotHolder/Body.duplicate()
-	add_child.call_deferred(message)
+	if message_clip == null:
+		message_clip = Control.new()
+		message_clip.clip_contents = true
+		message_clip.z_index = 4001
+		add_child.call_deferred(message_clip)
+	message_clip.add_child.call_deferred(message)
 	message.position.y = Global.window_height - scaled_text_height / 4.0
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	message.size.x = Global.window_width * Settings.get_setting(Settings.CFG_TEXT_LENGTH)
+	message.size.x = list_text_width()
 	message.position.x = Global.window_width - 2.0 - message.size.x
 	message.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
 	message.set("theme_override_font_sizes/font_size", scaled_text_height / 2.0)
@@ -563,15 +821,17 @@ func set_up_slots():
 	fav_indicators.clear()
 
 	var body_alignment = Settings.get_setting(Settings.CFG_VISUAL_BODY_ORIENTATION)
-	for i in range(1, (Global.window_height - title.size.y) / (scaled_text_height / 2.0) + 1):
+	var row_step = scaled_text_height * 0.5
+	var layout = [sizes[0], sizes[3]]
+	for i in range(1, layout[0] + 1):
 		var new_slot: Label = message.duplicate()
-		slot_offset = left_bound
+		slot_offset = left_bound + list_shift
 
 		new_slot.horizontal_alignment = body_alignment
 		slot_holder.add_child.call_deferred(new_slot)
 		visible_slots.append(new_slot)
 		new_slot.add_theme_constant_override("outline_size", outline_thickness)
-		new_slot.position.y = (slot_start) + i * (scaled_text_height * 0.5)
+		new_slot.position.y = layout[1] + (i - 1) * row_step
 		#var fav_indicator = $Indicator.duplicate()
 		#fav_indicator.visible = true
 		#new_slot.add_child.call_deferred(fav_indicator)
@@ -583,17 +843,26 @@ func set_up_slots():
 		#fav_indicator.position.y = scaled_text_height / 4.0 - 2.0
 		#fav_indicators.append(fav_indicator)
 
-	message.set("theme_override_font_sizes/font_size", minf(scaled_text_height / 4.0, 20.0))
+	message.set("theme_override_font_sizes/font_size", prompt_text_size())
+	set_list_shift(list_shift)
 	#message.visible = false
 	var custom_font = Settings.get_setting(Settings.CFG_FONT)
 	if custom_font != null and ResourceLoader.exists(custom_font):
 		font = ResourceLoader.load(custom_font)
 	refresh_fonts()
+	layout_message()
+	layout_header()
+	if prompt_bar != null:
+		prompt_bar.queue_redraw()
 
 func refresh_alias(system="COMMON"):
-	if root_path != null and FileAccess.file_exists(root_path + "/" + Global.PATH_CONFIG + "/" + system + "/alias.json"):
-		ALIAS_MAP = JSON.parse_string(FileAccess.get_file_as_string(root_path + "/" + Global.PATH_CONFIG + "/" + system + "/alias.json"))
-		set_active_alias_map(ALIAS_MAP)
+	var bundled_path = "res://launcher_configs/" + system + "/alias.json"
+	var user_path = str(root_path) + "/" + Global.PATH_CONFIG + "/" + system + "/alias.json"
+	if root_path == null or not (FileAccess.file_exists(bundled_path) or FileAccess.file_exists(user_path)):
+		return
+	var aliases = read_json_dict(bundled_path) if FileAccess.file_exists(bundled_path) else {}
+	aliases.merge(read_json_dict(user_path), true)
+	set_active_alias_map(aliases)
 
 func set_active_alias_map(aliases):
 	if not aliases:
@@ -670,16 +939,6 @@ func cycle_cover_sizes(direction: int = 1):
 	set_all_text_color(Settings.get_setting(Settings.CFG_FG_COLOR))
 	highlight_selection(option_selection)
 
-func cycle_drop_shadow_locations(direction: int = 1):
-	cycle_options(Settings.CFG_VISUAL_DROP_SHOW, Settings.SHADOW_LOCATIONS, direction)
-	refresh_art()
-
-func cycle_border_thickness(direction: int = 1):
-	cycle_options(Settings.CFG_VISUAL_BORDER, Settings.BORDER_SIZES, direction)
-	if Navigator.current_screen == "system_browser" and Settings.get_setting(Settings.CFG_VISUAL_BORDER) == Vector2.ZERO:
-		Settings.store(Settings.CFG_VISUAL_SYSTEM_BORDER, false)
-	refresh_art()
-
 func cycle_title_allignment(direction: int = 1):
 	cycle_options(Settings.CFG_VISUAL_TITLE_ORIENTATION, Settings.TITLE_ORIENTATIONS, direction)
 	set_up_slots()
@@ -693,38 +952,14 @@ func cycle_art_alignment(direction: int = 1):
 	cycle_options(Settings.CFG_VISUAL_ART_ORIENTATION, [0.25, 0.5, 0.75], direction)
 	refresh_art()
 
-func cycle_art_opacity(direction: int = 1):
-	cycle_options(Settings.CFG_VISUAL_COVER_OPACITY, Settings.OPACITY_LEVELS, direction)
-	refresh_art()
-
-func cycle_left_margin(direction: int = 1):
-	cycle_options(Settings.CFG_LEFT_MARGIN, Settings.MARGINS, direction)
-	set_up_slots()
-
-func cycle_top_margin(direction: int = 1):
-	cycle_options(Settings.CFG_TOP_MARGIN, Settings.MARGINS, direction)
-	set_up_slots()
-
-func cycle_title_size(direction: int = 1):
-	cycle_options(Settings.CFG_TITLE_SIZE, Settings.TITLE_SIZES, direction)
-	set_up_slots()
-
 func cycle_system_title(direction: int = 1):
 	cycle_options(Settings.CFG_SYSTEM_TITLE, ["SYSTEMS", "", "PLAIN LAUNCHER", "MAIN", "ALL"], direction)
-	set_up_slots()
+	refresh_home_title()
 
-func cycle_line_length(direction: int = 1):
-	cycle_options(Settings.CFG_TEXT_LENGTH, Settings.LINE_LENGTHS, direction)
-	set_up_slots()
-
-
-func toggle_text_outline():
-	var outline_thickness = 8
-	if title.get_theme_constant("outline_size") != 0:
-		outline_thickness = 0
-	for child in slot_holder.get_children():
-		child.add_theme_constant_override("outline_size", outline_thickness)
-	Settings.store(Settings.CFG_VISUAL_LETTER_OUTLINES, outline_thickness)
+func refresh_home_title():
+	if Navigator.current_screen == "system_browser":
+		update_title(Settings.get_setting(Settings.CFG_SYSTEM_TITLE))
+	apply_visual_change()
 
 func show_message(msg, priority=false):
 	"""
@@ -750,6 +985,7 @@ func show_message(msg, priority=false):
 	message.uppercase = Settings.get_setting(Settings.CFG_CAPS_LOCK)
 	message.visible = true
 	message.modulate.a = 1.0
+	layout_message()
 
 func update_title(new_title):
 	if no_alias:
@@ -764,6 +1000,19 @@ func set_slot(index, value):
 		visible_slots[index].text = ALIAS_MAP.get(value.to_lower(), value)
 	visible_slots[index].uppercase = Settings.get_setting(Settings.CFG_CAPS_LOCK)
 
+const SYSTEM_CONFIG_FILES = ["choices.json", "alias.json", "unique_paths.json"]
+
+func clear_system_game_settings(system_config_path: String):
+	DirAccess.remove_absolute(system_config_path + "/config.json")
+	var games_path = system_config_path + "/games"
+	for file in DirAccess.get_files_at(games_path):
+		DirAccess.remove_absolute(games_path + "/" + file)
+	DirAccess.remove_absolute(games_path)
+	for file in DirAccess.get_files_at(system_config_path):
+		if file.ends_with(".json") and file not in SYSTEM_CONFIG_FILES:
+			print("Removing legacy game settings " + file)
+			DirAccess.remove_absolute(system_config_path + "/" + file)
+
 func clear_all_settings():
 	var config_dir = DirAccess.open(root_path + "/" + Global.PATH_CONFIG)
 	config_dir.list_dir_begin()
@@ -774,7 +1023,8 @@ func clear_all_settings():
 		if not system_config_dir:
 			system_name = config_dir.get_next()
 			continue
-		system_config_dir.remove("config.json")
+		if system_name != "COMMON":
+			clear_system_game_settings(system_config_dir.get_current_dir())
 		system_name = config_dir.get_next()
 	config_dir.list_dir_end()
 
@@ -801,7 +1051,9 @@ func set_for_all_text(key, value, title_included=true):
 		text.set(key, value)
 
 func special_allowed():
-	return Navigator.current_screen == "system_browser" or Navigator.current_screen == "game_browser" or Navigator.current_screen == "android_apps"  or Navigator.current_screen == "scraper"
+	if panel_open():
+		return false
+	return Navigator.current_screen == "system_browser" or Navigator.current_screen == "game_browser" or Navigator.current_screen == "android_apps"
 
 func clear_visible(title_text="", custom_options=[]):
 	option_list.clear()
@@ -825,69 +1077,356 @@ func clear_visible(title_text="", custom_options=[]):
 		restore_position()
 		highlight_selection()
 
-func refresh_art(image_path=Global.get_image_path(), alt=false):
-	if !FileAccess.file_exists(image_path) and img_texture_override == null:
-		cover_art.texture = null
-		cover.visible = false
-		if not alt and Global.alt_art_path != "":
-			var altPath = Global.alt_art_path + "/" + Global.get_selected().filename.get_basename() + ".png"
-			return refresh_art(altPath, true)
+const ART_CACHE_SIZE = 20
+const THUMB_DIR = "user://thumbs"
+const ART_MISSING_TTL_MS = 60000
+
+var _art_cache = {}
+var _art_cache_order = []
+var _art_failed = {}
+var _art_missing = {}
+var _art_loading_path = ""
+var _art_loading_task = -1
+var _art_wanted_path = ""
+
+func refresh_art(image_path=Global.get_image_path()):
+	if img_texture_override != null:
+		_art_wanted_path = ""
+		apply_cover_texture(img_texture_override)
 		return
-	var art_file = FileAccess.open(image_path, FileAccess.READ)
-	cover.modulate.a = Settings.get_setting(Settings.CFG_VISUAL_COVER_OPACITY)
-	cover.position.y = window_height * Settings.get_setting(Settings.CFG_VISUAL_ART_POSITION_Y)
-	cover.position.x = window_width * Settings.get_setting(Settings.CFG_VISUAL_ART_POSITION_X)
-	if Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE) != Vector2.ZERO:
-		if img_texture_override != null:
-			cover_art.texture = img_texture_override
-		else:
-			var image = Image.load_from_file(image_path)
-			if image == null:
-				cover.visible = false
-				return
-			image.convert(Image.FORMAT_RGBA8)
-			cover_art.texture = ImageTexture.create_from_image(image)
-		var scale_ratio_x = ((Global.window_width) * Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE).x) / (cover_art.texture.get_size().x + Settings.get_setting(Settings.CFG_VISUAL_BORDER).x)
-		var scale_ratio_y = (Global.window_height * Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE).y) / (cover_art.texture.get_size().y + Settings.get_setting(Settings.CFG_VISUAL_BORDER).y)
-		if Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE).x == 1.0:
-			scale_ratio_x = Global.window_width / cover_art.texture.get_size().x
-			scale_ratio_y = Global.window_height / cover_art.texture.get_size().y
-		if Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE).x > 1.0:
-			scale_ratio_x = 2 * Global.window_width / cover_art.texture.get_size().x
-			scale_ratio_y = 2 * Global.window_height / cover_art.texture.get_size().y
-		var scale_ratio = min(scale_ratio_x, scale_ratio_y)
+	if !art_exists(image_path):
+		_art_wanted_path = ""
+		apply_cover_texture(null)
+		return
+	if cover_size() == Vector2.ZERO:
+		_art_wanted_path = ""
+		apply_cover_texture(null)
+		return
+	_art_wanted_path = image_path
+	var cached = cached_art(image_path)
+	if cached != null:
+		apply_cover_texture(cached)
+	elif art_failed(image_path):
+		apply_cover_texture(null)
+	load_next_art()
 
-		cover_art.scale = Vector2(scale_ratio, scale_ratio)
-		cover.z_index = 4000
+func cached_art(path: String):
+	var entry = _art_cache.get(path)
+	if entry == null:
+		return null
+	if entry.mtime != FileAccess.get_modified_time(path):
+		_art_cache.erase(path)
+		_art_cache_order.erase(path)
+		return null
+	_art_cache_order.erase(path)
+	_art_cache_order.append(path)
+	return entry.texture
 
-		if Settings.get_setting(Settings.CFG_VISUAL_BORDER) != Vector2.ZERO:
-			border.visible = true
-			border.scale = cover_art.texture.get_size() * cover_art.scale + Settings.get_setting(Settings.CFG_VISUAL_BORDER)
-			border.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
-		else:
-			border.visible = false
-		if !Settings.get_setting(Settings.CFG_VISUAL_SYSTEM_BORDER) and (Navigator.current_screen == "system_browser" or Navigator.current_screen == "special"):
-			border.visible = false
+func cache_art(path: String, texture: Texture2D):
+	_art_cache[path] = {"texture": texture, "mtime": FileAccess.get_modified_time(path)}
+	_art_cache_order.erase(path)
+	_art_cache_order.append(path)
+	while _art_cache_order.size() > ART_CACHE_SIZE:
+		_art_cache.erase(_art_cache_order.pop_front())
 
-		if Settings.get_setting(Settings.CFG_VISUAL_DROP_SHOW) != Vector2.ZERO:
-			drop_shadow.visible = true
-			drop_shadow.modulate.v = 0
-			drop_shadow.position = cover_art.position + Settings.get_setting(Settings.CFG_VISUAL_DROP_SHOW)
-			if border.visible:
-				drop_shadow.texture = border.texture
-				drop_shadow.scale = border.scale
-			else:
-				drop_shadow.texture = cover_art.texture
-				drop_shadow.scale = cover_art.scale
-				drop_shadow.position = cover_art.position + Settings.get_setting(Settings.CFG_VISUAL_DROP_SHOW)
-		else:
-			drop_shadow.visible = false
+func clear_art_cache():
+	_art_cache.clear()
+	_art_cache_order.clear()
+	_art_failed.clear()
+	_art_missing.clear()
 
-		cover.visible = true
+func art_exists(path: String) -> bool:
+	var checked = _art_missing.get(path, -1)
+	if checked >= 0 and Time.get_ticks_msec() - checked < ART_MISSING_TTL_MS:
+		return false
+	if FileAccess.file_exists(path):
+		_art_missing.erase(path)
+		return true
+	_art_missing[path] = Time.get_ticks_msec()
+	return false
+
+func forget_missing_art(path: String):
+	_art_missing.erase(path)
+
+func art_failed(path: String) -> bool:
+	return _art_failed.get(path, -1) == FileAccess.get_modified_time(path)
+
+func art_known(path: String) -> bool:
+	return _art_cache.has(path) or art_failed(path)
+
+func next_art_to_load() -> String:
+	if _art_wanted_path != "" and not art_known(_art_wanted_path):
+		return _art_wanted_path
+	var offsets = [1, -1, 2]
+	for reach in range(2, nearby_reach + 1):
+		offsets.append_array([reach, -reach])
+	for offset in offsets:
+		var i = option_selection + offset
+		if i < 0 or i >= option_list.size():
+			continue
+		var path = get_image_path(option_list[i])
+		if art_exists(path) and not art_known(path):
+			return path
+	return ""
+
+func load_next_art():
+	if _art_loading_path != "":
+		return
+	var path = next_art_to_load()
+	if path == "":
+		return
+	var box = art_box_size()
+	var thumb = thumbnail_path(path, box) if box.x > 0 and box.y > 0 else ""
+	_art_loading_path = path
+	_art_loading_task = WorkerThreadPool.add_task(_load_art_image.bind(path, thumb, box))
+
+func art_box_size() -> Vector2i:
+	var size = cover_size()
+	var box = Vector2(window_width, window_height)
+	if size.x > 1.0:
+		box *= 2
+	elif size.x < 1.0:
+		box *= size
+	return Vector2i(box)
+
+func thumbnail_path(path: String, box: Vector2i) -> String:
+	return THUMB_DIR + "/%s_%d_%dx%d.webp" % [path.md5_text(), FileAccess.get_modified_time(path), box.x, box.y]
+
+static func load_cover_image(path: String, thumb: String, box: Vector2i) -> Image:
+	if thumb != "" and FileAccess.file_exists(thumb):
+		var thumb_image = Image.load_from_file(thumb)
+		if thumb_image != null:
+			return thumb_image
+	var image = Image.load_from_file(path)
+	if image == null or thumb == "":
+		return image
+	var fit = min(box.x / float(image.get_width()), box.y / float(image.get_height()))
+	if fit < 1.0:
+		image.resize(maxi(1, int(image.get_width() * fit)), maxi(1, int(image.get_height() * fit)), Image.INTERPOLATE_LANCZOS)
+		DirAccess.make_dir_recursive_absolute(thumb.get_base_dir())
+		image.save_webp(thumb, true, 0.9)
+	return image
+
+func _load_art_image(path: String, thumb: String, box: Vector2i):
+	var image = load_cover_image(path, thumb, box)
+	if image != null:
+		image.convert(Image.FORMAT_RGBA8)
+	_on_art_loaded.call_deferred(path, image)
+
+func _on_art_loaded(path: String, image):
+	if path == _art_loading_path:
+		if _art_loading_task >= 0:
+			WorkerThreadPool.wait_for_task_completion(_art_loading_task)
+		_art_loading_path = ""
+		_art_loading_task = -1
+	if image == null:
+		_art_failed[path] = FileAccess.get_modified_time(path)
+		if path == _art_wanted_path:
+			apply_cover_texture(null)
 	else:
+		var texture = ImageTexture.create_from_image(image)
+		cache_art(path, texture)
+		if path == _art_wanted_path:
+			apply_cover_texture(texture)
+		else:
+			update_nearby_covers()
+	load_next_art()
+
+func cover_size() -> Vector2:
+	var size = Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE)
+	if force_cover and (size == Vector2.ZERO or size.x >= 1.0):
+		return Settings.COVER_SIZES[2]
+	return size
+
+const COVER_ANCHOR = Vector2(0.75, 0.5)
+const LEFT_COVER_ANCHOR = Vector2(0.25, 0.5)
+const PORTRAIT_COVER_ANCHOR = Vector2(0.5, 0.22)
+const LIST_SLIDE_SECONDS = 0.18
+var list_shift = 0.0
+var _list_tween: Tween = null
+
+func cover_on_left() -> bool:
+	return Settings.get_setting(Settings.CFG_COVER_SIDE) == "left" and not force_cover
+
+func cover_anchor() -> Vector2:
+	if force_cover and window_height > window_width:
+		return PORTRAIT_COVER_ANCHOR
+	if not cover_on_left():
+		return COVER_ANCHOR
+	return Vector2(left_cover_anchor_x(window_width, left_bound, window_width * cover_size().x), LEFT_COVER_ANCHOR.y)
+
+static func left_cover_anchor_x(width: float, left: float, box: float) -> float:
+	return (left + box / 2.0) / maxf(1.0, width)
+
+static func left_cover_shift(cover_width: float, gap: float) -> float:
+	return maxf(0.0, cover_width + gap)
+
+func slide_list_for_cover():
+	var target = 0.0
+	if cover_on_left() and cover.visible:
+		target = left_cover_shift(window_width * cover_size().x, scaled_text_height * 0.3)
+	if is_equal_approx(target, list_shift) and (_list_tween == null or not _list_tween.is_running()):
+		return
+	if _list_tween != null:
+		_list_tween.kill()
+	_list_tween = create_tween()
+	_list_tween.tween_method(set_list_shift, list_shift, target, LIST_SLIDE_SECONDS).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+func set_list_shift(value: float):
+	list_shift = value
+	slot_offset = left_bound + list_shift
+	slot_size.x = list_text_width() - list_shift
+	for slot in visible_slots:
+		slot.position.x = slot_offset
+		slot.size.x = slot_size.x / slot.scale.x
+
+const NEARBY_SCALE = 0.5
+const NEARBY_ALPHA = 0.55
+const NEARBY_FADE_STEP = 0.12
+const NEARBY_MIN_ALPHA = 0.2
+var nearby_art: Array = []
+var nearby_reach = 0
+
+static func nearby_crop(center_y: float, height: float, top_limit: float, bottom_limit: float) -> Vector2:
+	var top = center_y - height / 2.0
+	var bottom = center_y + height / 2.0
+	return Vector2(clampf(top_limit - top, 0.0, height), clampf(bottom - bottom_limit, 0.0, height))
+
+static func nearby_offset(main_height: float, small_height: float, gap: float) -> float:
+	return main_height / 2.0 + gap + small_height / 2.0
+
+func nearby_slots(direction: int, top_limit: float, bottom_limit: float, gap: float, nominal: float) -> Array:
+	var slots = []
+	var main_half = cover_art.texture.get_size().y * cover_art.scale.y / 2.0
+	var center = cover.position.y + cover_art.position.y
+	var edge = center + direction * (main_half + gap)
+	var step = 1
+	while (direction < 0 and edge > top_limit) or (direction > 0 and edge < bottom_limit):
+		var index = option_selection + direction * step
+		if index < 0 or index >= option_list.size():
+			break
+		var path = get_image_path(option_list[index])
+		slots.append({"step": step, "path": path, "edge": edge})
+		var texture = cached_art(path) if path != "" else null
+		var height = nominal
+		if texture != null:
+			height = texture.get_size().y * minf(nearby_box().x / texture.get_size().x, nearby_box().y / texture.get_size().y)
+		edge += direction * (height + gap)
+		step += 1
+	return slots
+
+func nearby_box() -> Vector2:
+	return Vector2(window_width, window_height) * cover_size() * NEARBY_SCALE
+
+func update_nearby_covers():
+	if cover == null or cover_art == null:
+		return
+	nearby_reach = 0
+	var enabled = Settings.get_setting(Settings.CFG_NEARBY_COVERS) and cover.visible and cover_art.texture != null and not force_cover
+	var shown = 0
+	if enabled:
+		var limits = Vector2(title.position.y + title.size.y if not title_collapsed else 0.0, window_height - prompt_bar_height())
+		var gap = scaled_text_height * 0.2
+		for direction in [-1, 1]:
+			for slot in nearby_slots(direction, limits.x, limits.y, gap, nearby_box().y):
+				nearby_reach = maxi(nearby_reach, slot.step)
+				var texture = cached_art(slot.path) if slot.path != "" else null
+				if texture == null:
+					continue
+				var sprite = _nearby_sprite(shown)
+				shown += 1
+				var ratio = minf(nearby_box().x / texture.get_size().x, nearby_box().y / texture.get_size().y)
+				var height = texture.get_size().y * ratio
+				var center_y = slot.edge + direction * height / 2.0
+				var crop = nearby_crop(center_y, height, limits.x, limits.y) / ratio
+				sprite.texture = texture
+				sprite.scale = Vector2(ratio, ratio)
+				sprite.region_enabled = true
+				sprite.region_rect = Rect2(0, crop.x, texture.get_size().x, texture.get_size().y - crop.x - crop.y)
+				sprite.position = Vector2(cover_art.position.x, center_y - cover.position.y + (crop.x - crop.y) * ratio / 2.0)
+				sprite.modulate = Color(1, 1, 1, maxf(NEARBY_MIN_ALPHA, NEARBY_ALPHA - NEARBY_FADE_STEP * (slot.step - 1)))
+				sprite.visible = sprite.region_rect.size.y > 0
+	for k in range(shown, nearby_art.size()):
+		nearby_art[k].visible = false
+	if enabled:
+		load_next_art()
+
+func _nearby_sprite(k: int) -> Sprite2D:
+	while nearby_art.size() <= k:
+		var sprite = Sprite2D.new()
+		cover.add_child(sprite)
+		cover.move_child(sprite, maxi(0, border.get_index()))
+		nearby_art.append(sprite)
+	return nearby_art[k]
+
+func fit_text_to_cover():
+	slide_list_for_cover()
+	update_nearby_covers()
+	if cover_halo == null:
+		cover_halo = CoverHalo.new()
+		cover.add_child(cover_halo)
+		cover.move_child(cover_halo, 0)
+	cover_halo.visible = cover.visible and cover_art.texture != null and not force_cover and not cover_on_left()
+	if not cover_halo.visible:
+		return
+	var border_size = Settings.get_setting(Settings.CFG_VISUAL_BORDER) if border.visible else Vector2.ZERO
+	cover_halo.half_size = (cover_art.texture.get_size() * cover_art.scale + border_size) / 2.0
+	cover_halo.feather = scaled_text_height * COVER_FADE
+	cover_halo.color = Settings.get_setting(Settings.CFG_BG_COLOR)
+	cover_halo.queue_redraw()
+
+func cover_z() -> int:
+	var wide_panel = settings_panel != null and settings_panel.panel_ratio() > SlidePanel.WIDTH_RATIO + 0.001
+	return 4003 if force_cover and not wide_panel else 4000
+
+func apply_cover_texture(texture):
+	if texture == null or cover_size() == Vector2.ZERO:
 		cover_art.texture = null
 		cover.visible = false
+		fit_text_to_cover()
+		return
+	cover.modulate.a = Settings.get_setting(Settings.CFG_VISUAL_COVER_OPACITY)
+	var size = cover_size()
+	cover.position = Vector2(window_width, window_height) * cover_anchor()
+	cover_art.texture = texture
+	var scale_ratio_x = ((Global.window_width) * size.x) / (cover_art.texture.get_size().x + Settings.get_setting(Settings.CFG_VISUAL_BORDER).x)
+	var scale_ratio_y = (Global.window_height * size.y) / (cover_art.texture.get_size().y + Settings.get_setting(Settings.CFG_VISUAL_BORDER).y)
+	if size.x == 1.0:
+		scale_ratio_x = Global.window_width / cover_art.texture.get_size().x
+		scale_ratio_y = Global.window_height / cover_art.texture.get_size().y
+	if size.x > 1.0:
+		scale_ratio_x = 2 * Global.window_width / cover_art.texture.get_size().x
+		scale_ratio_y = 2 * Global.window_height / cover_art.texture.get_size().y
+	var scale_ratio = min(scale_ratio_x, scale_ratio_y)
 
+	cover_art.scale = Vector2(scale_ratio, scale_ratio)
+	cover.z_index = cover_z()
+
+	if Settings.get_setting(Settings.CFG_VISUAL_BORDER) != Vector2.ZERO:
+		border.visible = true
+		border.scale = cover_art.texture.get_size() * cover_art.scale + Settings.get_setting(Settings.CFG_VISUAL_BORDER)
+		border.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
+	else:
+		border.visible = false
+	if !Settings.get_setting(Settings.CFG_VISUAL_SYSTEM_BORDER) and (Navigator.current_screen == "system_browser" or (force_cover and special_item != null and special_item.is_dir)):
+		border.visible = false
+
+	if Settings.get_setting(Settings.CFG_VISUAL_DROP_SHOW) != Vector2.ZERO:
+		drop_shadow.visible = true
+		drop_shadow.modulate.v = 0
+		drop_shadow.position = cover_art.position + Settings.get_setting(Settings.CFG_VISUAL_DROP_SHOW)
+		if border.visible:
+			drop_shadow.texture = border.texture
+			drop_shadow.scale = border.scale
+		else:
+			drop_shadow.texture = cover_art.texture
+			drop_shadow.scale = cover_art.scale
+			drop_shadow.position = cover_art.position + Settings.get_setting(Settings.CFG_VISUAL_DROP_SHOW)
+	else:
+		drop_shadow.visible = false
+
+	cover.visible = true
+	fit_text_to_cover()
 
 func highlight_selection(next_selection=option_selection):
 	slot_holder.position.x = 0
@@ -897,8 +1436,7 @@ func highlight_selection(next_selection=option_selection):
 		var list_idx = scroll_offset + i
 		"""
 		var slot_is_fav = list_idx < option_list.size() and favorites_list.has(option_list[list_idx].absolute_path)
-		var slot_is_checked = list_idx < option_list.size() and option_list[list_idx].clean in selector_active
-		if slot_is_fav or slot_is_checked:
+		if slot_is_fav:
 			slot.text = "•" + slot.text
 		"""
 		slot.size = slot_size
@@ -950,35 +1488,51 @@ func show_options(offset=0):
 	for i in range(0, Global.visible_slots.size()):
 		if i+offset >= option_list.size():
 			set_slot(i, "")
-			#fav_indicators[i].visible = false
+			show_favorite_star(visible_slots[i], false)
 			continue
 		set_slot(i, option_list[i+offset].clean)
-		var is_fav = favorites_list.has(option_list[i+offset].absolute_path)
-		var slot_is_checked = option_list[i+offset].clean in selector_active
-		if is_fav or slot_is_checked:
-			visible_slots[i].text = "•" + visible_slots[i].text
+		var is_favorite = favorites_list.has(option_list[i+offset].absolute_path)
+		if is_favorite:
+			visible_slots[i].text = favorite_indent(visible_slots[i]) + visible_slots[i].text
+		show_favorite_star(visible_slots[i], is_favorite)
 		visible_slots[i].position.x = slot_offset
 	if post_draw_callback != null:
 		post_draw_callback.call()
+
+func favorite_star_space() -> float:
+	return scaled_text_height * 0.3
+
+func favorite_indent(slot: Label) -> String:
+	var font_size = slot.get_theme_font_size("font_size")
+	var space_width = slot.get_theme_font("font").get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	return " ".repeat(ceili(favorite_star_space() / maxf(1.0, space_width)))
+
+func show_favorite_star(slot: Label, shown: bool):
+	var star = slot.get_node_or_null("FavoriteStar")
+	if star == null:
+		if not shown:
+			return
+		star = FavoriteStarScript.new()
+		star.name = "FavoriteStar"
+		slot.add_child(star)
+	star.visible = shown
+	var star_size = scaled_text_height * 0.2
+	star.size = Vector2(star_size, star_size)
+	var font_size = slot.get_theme_font_size("font_size")
+	var letters_middle = slot.get_theme_font("font").get_ascent(font_size) * 0.62
+	if slot.vertical_alignment == VERTICAL_ALIGNMENT_CENTER:
+		letters_middle += (slot.size.y - slot.get_theme_font("font").get_height(font_size)) / 2.0
+	star.position = Vector2((favorite_star_space() - star_size) / 2.0, letters_middle - star_size / 2.0)
+	star.queue_redraw()
 
 func _favorites_json_path() -> String:
 	return root_path + PATH_GAMES + "FAVORITES/favorites.json"
 
 func _load_favorites_json() -> Array:
-	var path = _favorites_json_path()
-	if not FileAccess.file_exists(path):
-		return []
-	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
-	return parsed if parsed is Array else []
+	return read_json_array(_favorites_json_path())
 
 func _save_favorites_json(entries: Array):
-	var fav_dir_path = root_path + PATH_GAMES + "FAVORITES"
-	if not DirAccess.dir_exists_absolute(fav_dir_path):
-		DirAccess.make_dir_recursive_absolute(fav_dir_path)
-	var f = FileAccess.open(_favorites_json_path(), FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify(entries, "\t"))
-		f.close()
+	write_json(_favorites_json_path(), entries)
 
 func get_favorites_entries() -> Array:
 	return _load_favorites_json()
@@ -990,7 +1544,7 @@ func populate_favorites():
 	Global.show_options(Global.scroll_offset)
 
 func add_favorite(item):
-	if item.favorite_dir or Global.favorites_list.has(item.absolute_path):
+	if Global.favorites_list.has(item.absolute_path):
 		return
 	var entries = _load_favorites_json()
 	entries.append({
@@ -1028,7 +1582,7 @@ func remove_favorite(item):
 func toggle_favorite(item):
 	if item.clean == "":
 		return
-	if item.favorite_dir or Global.favorites_list.has(item.absolute_path):
+	if Global.favorites_list.has(item.absolute_path):
 		remove_favorite(item)
 		Global.show_message("Removed from favorites", true)
 	else:
@@ -1073,13 +1627,32 @@ func toggle_hidden():
 
 func list_multiple_paths_combined(paths):
 	for path in paths:
+		if _missing_dirs.has(path):
+			continue
 		var dir = DirAccess.open(path)
 		if dir == null:
 			print("FAILED TO ACCESS " + path)
+			_missing_dirs[path] = true
 			continue
 		list_directory_contents(dir, false, [], false)
-	Global.option_list.sort_custom(func(a,b): return a.filename.to_lower() < b.filename.to_lower())
+	Global.option_list.sort_custom(by_display_name)
 	restore_position()
+
+static func shown_name(opt) -> String:
+	return str(Global.ALIAS_MAP.get(opt.clean.to_lower(), opt.clean)).to_lower()
+
+static func by_display_name(a, b) -> bool:
+	var first = shown_name(a)
+	var second = shown_name(b)
+	if first != second:
+		return first < second
+	return a.filename.to_lower() < b.filename.to_lower()
+
+static func sort_after_specials(options: Array, special: Array) -> Array:
+	var pinned = options.filter(func(o): return o.filename in special)
+	var rest = options.filter(func(o): return o.filename not in special)
+	rest.sort_custom(by_display_name)
+	return pinned + rest
 
 func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], refresh_at_end=true, use_cache=true):
 	if directory == null:
@@ -1104,8 +1677,9 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], r
 			ALIAS_MAP[clean_regex.sub(path.get_basename(), "", true)] = unique_paths[path]
 	for special_file in special:
 		file_names.push_front(special_file)
+	var added = []
 	for file in file_names:
-		var opt = OPTIONS_MAKER.instantiate()
+		var opt = option.new()
 		opt.filename = file
 		opt.absolute_path = directory.get_current_dir() + "/" + file
 		if !clean_names.has(file):
@@ -1117,9 +1691,6 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], r
 		if dirs_only:
 			opt.is_dir = true
 			use_system = file
-		if system == "FAVORITES":
-			opt.favorite_dir = true
-			use_system = file.split("]")[0].replace("[", "")
 		opt.system = use_system
 		if populate_filter != null:
 			var populate_filter_callback: Callable = populate_filter
@@ -1127,7 +1698,8 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], r
 				continue
 		if filter_out_hidden(opt):
 			continue
-		Global.option_list.append(opt)
+		added.append(opt)
+	Global.option_list.append_array(sort_after_specials(added, special))
 	option_selection = 0
 	if refresh_at_end:
 		restore_position()
@@ -1141,9 +1713,8 @@ func move_down():
 		option_selection = -1
 		vibrate(50)
 		show_options(0)
-	elif option_selection >= visible_slots.size() - 1:
-		if option_selection == scroll_offset + visible_slots.size()-1:
-			scroll_offset += 1
+	elif option_selection == scroll_offset + visible_slots.size() - 1:
+		scroll_offset += 1
 		show_options(scroll_offset)
 	if confirm_hold_time != null:
 		confirm_hold_time = Time.get_ticks_msec()
@@ -1158,11 +1729,9 @@ func move_up():
 			show_options(scroll_offset)
 		option_selection = option_list.size()
 		vibrate(50)
-	else:
-		if scroll_offset > 0:
-			if option_selection == scroll_offset:
-				scroll_offset -= 1
-			show_options(scroll_offset)
+	elif scroll_offset > 0 and option_selection == scroll_offset:
+		scroll_offset -= 1
+		show_options(scroll_offset)
 	if confirm_hold_time != null:
 		confirm_hold_time = Time.get_ticks_msec()
 	highlight_selection(option_selection-1)
@@ -1182,79 +1751,69 @@ func build_system_settings_from_options(system_for_settings=Global.subscreen):
 func get_system_settings_options(system_for_settings=Global.subscreen):
 	var options_path = Global.root_path + "/" + Global.PATH_CONFIG + "/" + system_for_settings + "/choices.json"
 	print("GET SETTINGS OPTIONS AT " + options_path)
-	if not FileAccess.file_exists(options_path):
-		return {}
-	var options_string = FileAccess.get_file_as_string(options_path)
-	if options_string == null or options_string == "":
-		return {}
-	return JSON.parse_string(FileAccess.get_file_as_string(options_path))
+	var options = read_json_dict(options_path)
+	var hidden = options.get("EMULATOR_HIDDEN", [])
+	options.erase("EMULATOR_HIDDEN")
+	var emulators: Array = options.get("EMULATOR", []).duplicate()
+	for id in Launcher.emulators_for_system(system_for_settings):
+		if id not in emulators and id not in hidden:
+			emulators.append(id)
+	if not emulators.is_empty():
+		options["EMULATOR"] = emulators
+	return options
 
 func get_system_unique_paths(system_for_settings=Global.subscreen):
 	var uniques_path = Global.root_path + "/" + Global.PATH_CONFIG + "/" + system_for_settings + "/unique_paths.json"
 	print("GET UNIQUE PATHS AT " + uniques_path)
-	if not FileAccess.file_exists(uniques_path):
-		return {}
-	var uniques_string = FileAccess.get_file_as_string(uniques_path)
-	if uniques_string == null or uniques_string == "":
-		return {}
-	return JSON.parse_string(FileAccess.get_file_as_string(uniques_path))
+	return read_json_dict(uniques_path)
 
 func get_systemwide_settings(for_system):
 	var current_settings_path = Global.root_path + "/" + Global.PATH_CONFIG + "/" + for_system + "/config.json"
-	var current_settings = JSON.parse_string(FileAccess.get_file_as_string(current_settings_path))
-	if current_settings == null:
+	var current_settings = read_json_dict(current_settings_path)
+	if current_settings.is_empty():
 		return build_system_settings_from_options(for_system)
 	return current_settings
 
-func get_system_settings(system_for_settings=Global.subscreen):
-	var system_settings = {}
-	var current_settings_path = Global.root_path + "/" + Global.PATH_CONFIG + "/" + system_for_settings + "/config.json"
+func get_game_settings_path(system: String, filename: String) -> String:
+	return Global.root_path + "/" + Global.PATH_CONFIG + "/" + system + "/games/" + filename + ".json"
 
-	if Global.special_item != null and !Global.special_item.is_dir:
-		var game_settings_path = Global.root_path + "/" + Global.PATH_CONFIG + "/" + system_for_settings + "/" + Global.special_item.clean + ".json"
-		if FileAccess.file_exists(game_settings_path) and not JSON.parse_string(FileAccess.get_file_as_string(game_settings_path)).is_empty():
-			current_settings_path = game_settings_path
+func get_legacy_game_settings_path(system: String, clean: String) -> String:
+	return Global.root_path + "/" + Global.PATH_CONFIG + "/" + system + "/" + clean + ".json"
+
+func get_system_settings(system_for_settings=Global.subscreen, filename: String = "", clean: String = ""):
 	if system_for_settings == "" or system_for_settings == null:
 		return {}
+	if filename != "":
+		var game_settings = read_json_dict(get_game_settings_path(system_for_settings, filename))
+		if game_settings.is_empty() and clean != "":
+			game_settings = read_json_dict(get_legacy_game_settings_path(system_for_settings, clean))
+		if not game_settings.is_empty():
+			print("GET SETTINGS for game " + filename)
+			return game_settings
+	var current_settings_path = Global.root_path + "/" + Global.PATH_CONFIG + "/" + system_for_settings + "/config.json"
 	print("GET SETTINGS " + current_settings_path)
-	if FileAccess.file_exists(current_settings_path):
-		system_settings = JSON.parse_string(FileAccess.get_file_as_string(current_settings_path))
-	else:
+	var system_settings = read_json_dict(current_settings_path)
+	if system_settings.is_empty():
 		system_settings = build_system_settings_from_options(system_for_settings)
 	return system_settings
 
-func get_paths_filepath(prefix=""):
-	var system = Global.subscreen
-	if Global.special_item != null:
-		system = Global.special_item.system
+func get_paths_filepath(system: String, prefix=""):
 	return Global.root_path + Global.PATH_CONFIG + system + "/" + prefix + "paths.txt"
 
-func get_compat_paths_filepath():
-	var system = Global.subscreen
-	if Global.special_item != null:
-		system = Global.special_item.system
+func get_compat_paths_filepath(system: String):
+	var bundled = "res://launcher_configs/" + system + "/compatibility_paths.txt"
+	if FileAccess.file_exists(bundled):
+		return bundled
 	return Global.root_path + Global.PATH_CONFIG + system + "/compatibility_paths.txt"
 
-func store_additional_art_path(path):
-	var paths_file = get_paths_filepath("art_")
-	var paths_file_write = FileAccess.open(paths_file, FileAccess.WRITE)
-	print("STORE ADDITIONAL ART PATHS " + str(path) + " TO " + paths_file)
-	paths_file_write.store_string(path)
-
-func get_additional_art_path():
-	var paths_file = get_paths_filepath("art_")
-	if FileAccess.file_exists(paths_file):
-		return FileAccess.get_file_as_string(paths_file)
-	return ""
-
-func store_additional_paths(paths):
-	var paths_file = get_paths_filepath()
+func store_additional_paths(system: String, paths):
+	var paths_file = get_paths_filepath(system)
 	var paths_file_write = FileAccess.open(paths_file, FileAccess.WRITE)
 	print("STORE ADDITIONAL PATHS " + str(paths) + " TO " + paths_file)
 	paths_file_write.store_string("\n".join(paths))
 
-func remove_additional_path(path):
-	var paths_file = get_paths_filepath()
+func remove_additional_path(system: String, path):
+	var paths_file = get_paths_filepath(system)
 	if not FileAccess.file_exists(paths_file):
 		return
 	var paths: Array = FileAccess.get_file_as_string(paths_file).split("\n")
@@ -1262,9 +1821,15 @@ func remove_additional_path(path):
 	var paths_file_write = FileAccess.open(paths_file, FileAccess.WRITE)
 	paths_file_write.store_string("\n".join(paths))
 
-func get_additional_paths():
-	var paths_file = get_paths_filepath()
-	var compat_file = get_compat_paths_filepath()
+func get_user_paths(system: String) -> Array:
+	var paths_file = get_paths_filepath(system)
+	if not FileAccess.file_exists(paths_file):
+		return []
+	return Array(FileAccess.get_file_as_string(paths_file).split("\n")).filter(func(p): return p != "")
+
+func get_additional_paths(system: String):
+	var paths_file = get_paths_filepath(system)
+	var compat_file = get_compat_paths_filepath(system)
 	var paths = []
 	if FileAccess.file_exists(paths_file):
 		for path in FileAccess.get_file_as_string(paths_file).split("\n"):
@@ -1286,27 +1851,27 @@ func get_selected():
 		return null_option
 	return option_list[option_selection]
 
+static func list_key(screen: String, list: String, file_browser_label: String) -> String:
+	if screen == "file_browser":
+		return file_browser_label.to_lower()
+	if screen == "game_browser":
+		return screen + ":" + list
+	return screen
+
+func position_key() -> String:
+	return list_key(Navigator.current_screen, str(subscreen), message.text if message != null else "")
+
 func get_stored_scroll_offset():
-	if Navigator.current_screen == "file_browser":
-		return scroll_offsets.get(message.text.to_lower())
-	else:
-		return scroll_offsets.get(title.text.to_lower())
+	return scroll_offsets.get(position_key())
 
 func get_stored_cursor_position():
-	if Navigator.current_screen == "file_browser":
-		return cursor_positions.get(message.text.to_lower())
-	else:
-		return cursor_positions.get(title.text.to_lower())
+	return cursor_positions.get(position_key())
 
 func store_position():
-	if Navigator.current_screen == "file_browser":
-		cursor_positions[message.text.to_lower()] = option_selection
-		cursor_indices[message.text.to_lower()] = option_selection
-		scroll_offsets[message.text.to_lower()] = scroll_offset
-	else:
-		cursor_positions[title.text.to_lower()] = Global.get_selected().absolute_path
-		cursor_indices[title.text.to_lower()] = option_selection
-		scroll_offsets[title.text.to_lower()] = scroll_offset
+	var key = position_key()
+	cursor_positions[key] = option_selection if Navigator.current_screen == "file_browser" else Global.get_selected().absolute_path
+	cursor_indices[key] = option_selection
+	scroll_offsets[key] = scroll_offset
 
 func restore_position():
 	option_selection = 0
@@ -1322,7 +1887,7 @@ func restore_position():
 			scroll_offset = max(0, option_selection - visible_slots.size())
 		if option_selection == option_list.size():
 			# Path match failed — fall back to stored numeric index
-			var title_key = message.text.to_lower() if Navigator.current_screen == "file_browser" else title.text.to_lower()
+			var title_key = position_key()
 			var stored_idx = cursor_indices.get(title_key, 0)
 			option_selection = min(stored_idx, option_list.size() - 1)
 			var stored_scroll = scroll_offsets.get(title_key, 0)
@@ -1344,18 +1909,44 @@ func on_scroll():
 	refresh_art()
 
 func cursor_locked():
-	return Navigator.current_screen == "color_picker" or Navigator.current_screen == "art_placer" or disable_scroll
+	return disable_scroll or (letter_scroller != null and letter_scroller.active and not letter_scroller.peeking)
+
+func letters_allowed() -> bool:
+	return special_allowed() and not option_list.is_empty()
+
+func jump_to_row(index: int):
+	option_selection = clampi(index, 0, option_list.size() - 1)
+	scroll_offset = clampi(option_selection, 0, maxi(0, option_list.size() - visible_slots.size()))
+	show_options(scroll_offset)
+	highlight_selection()
+	refresh_art()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	if message == null:
 		return
+	if letter_scroller != null:
+		if Input.is_action_pressed("trigger_r") and letters_allowed():
+			if not letter_scroller.active or letter_scroller.peeking:
+				letter_scroller.begin()
+			else:
+				letter_scroller.handle_held_input()
+		elif letter_scroller.active and not letter_scroller.by_touch and not letter_scroller.peeking:
+			letter_scroller.finish()
+	if Input.is_action_just_pressed("options") and special_allowed():
+		Navigator.go_to_special()
+	if message_overflow > 0.0 and message.modulate.a > 0:
+		var speed = prompt_text_size() * 3.0
+		message_scroll_time += delta
+		if message_scroll_time > MESSAGE_SCROLL_PAUSE * 2.0 + message_overflow / speed:
+			message_scroll_time = 0.0
+			message_scroll_passes += 1
+		message.position.x = message_scroll_x(message_scroll_time, message_overflow, speed, MESSAGE_SCROLL_PAUSE)
 	if message.modulate.a > 0:
-		message.modulate.a -= delta / 2.0
+		if message_overflow <= 0.0 or message_scroll_passes > 0:
+			message.modulate.a -= delta / 2.0
 	elif !message_queue.is_empty():
 		show_message(message_queue.pop_front())
-	if Input.is_action_just_pressed("select") or Input.is_action_just_pressed("back"):
-		vibrate(50)
 	if !cursor_locked():
 		if Global.up_just_pressed():
 			move_up()
@@ -1393,6 +1984,8 @@ func _process(delta):
 			Navigator.go_to_special()
 
 func _physics_process(delta):
+	if title != null and title_collapsed != (title_can_be_blank and title.text == ""):
+		apply_visual_change()
 	if touch_position == null or touch_start_position == null:
 		control_tilt = Vector2(Input.get_action_strength("left_stick_right") - Input.get_action_strength("left_stick_left"), Input.get_action_strength("left_stick_down") - Input.get_action_strength("left_stick_up"))
 		var new_tilt_ratio = max(0.1, (1.0 - control_tilt.length()) / 1.0)
@@ -1503,13 +2096,20 @@ func _physics_process(delta):
 				if moving:
 					on_scroll()
 					pending_special = false
-					touch_check_time = Time.get_ticks_msec() + tilt_ratio * 200
+					touch_check_time = Time.get_ticks_msec() + stick_repeat_ms(tilt_ratio)
 
 ###############################################################
 #
 # Controller stuff
 #
 ###############################################################
+const STICK_REPEAT_FAST_MS = 70.0
+const STICK_REPEAT_SLOW_MS = 250.0
+
+static func stick_repeat_ms(ratio: float) -> float:
+	var push = clampf((1.0 - ratio) / 0.9, 0.0, 1.0)
+	return lerpf(STICK_REPEAT_SLOW_MS, STICK_REPEAT_FAST_MS, push)
+
 func vibrate(duration):
 	if !Settings.get_setting(Settings.CFG_VIBRATE):
 		return
@@ -1611,14 +2211,75 @@ func get_es_de_system(selected=Global.get_selected()):
 		return "psx"
 	return curr_sys
 
+func alias_location(item) -> Array:
+	if clean_regex == null:
+		clean_regex = RegEx.create_from_string(CLEAN_PATTERN)
+	if item.is_dir:
+		return [root_path + PATH_CONFIG + "COMMON/alias.json", item.filename.to_lower()]
+	return [root_path + PATH_CONFIG + item.system + "/alias.json", clean_regex.sub(item.filename.get_basename(), "", true)]
+
+func default_name(item) -> String:
+	var location = alias_location(item)
+	var bundled = read_json_dict("res://launcher_configs/" + ("COMMON" if item.is_dir else item.system) + "/alias.json")
+	var fallback = item.filename if item.is_dir else location[1]
+	return str(bundled.get(location[1], bundled.get(location[1].to_lower(), fallback)))
+
+func custom_name(item) -> String:
+	var location = alias_location(item)
+	return str(read_json_dict(location[0]).get(location[1], ""))
+
+func set_custom_name(item, name: String):
+	var location = alias_location(item)
+	var aliases = read_json_dict(location[0])
+	if name.strip_edges() == "":
+		aliases.erase(location[1])
+	else:
+		aliases[location[1]] = name.strip_edges()
+	DirAccess.make_dir_recursive_absolute(location[0].get_base_dir())
+	write_json(location[0], aliases)
+	clean_names.erase(item.filename)
+	refresh_alias("COMMON" if item.is_dir else item.system)
+
+static func is_system_item(selected) -> bool:
+	return selected.filename.get_basename() == selected.system
+
+func custom_art_path(selected) -> String:
+	if is_system_item(selected):
+		return str(Global.root_path + Global.PATH_IMAGES + selected.system + "_custom.png").replace("//", "/")
+	return get_image_path(selected)
+
 func get_image_path(selected=Global.get_selected()):
 	var system_in_question = selected.system
 	var game_title = selected.filename.get_basename()
 	if game_title == system_in_question:
-		if not Settings.get_setting(Settings.CFG_VISUAL_BUILTIN_SYSTEM_ART):
-			return str(Global.root_path + Global.PATH_IMAGES + system_in_question + "_custom.png").replace("//", "/")
+		if not force_cover and not Settings.get_setting(Settings.CFG_VISUAL_SYSTEM_ART):
+			return ""
+		var custom = custom_art_path(selected)
+		if art_exists(custom):
+			return custom
 		return str(Global.root_path + Global.PATH_IMAGES + system_in_question + ".png").replace("//", "/")
+	if system_in_question == "ANDROID" and not selected.is_dir and selected.absolute_path != "":
+		game_title = selected.absolute_path
 	return str(str(Global.root_path) + str(Global.PATH_IMAGES) + str(system_in_question) + "/" + str(game_title) + ".png").replace("//", "/")
+
+static func move_app_art(art_dir: String, apps: Dictionary) -> int:
+	var moved = 0
+	for label in apps:
+		var old_path = art_dir + "/" + str(label).get_basename() + ".png"
+		var new_path = art_dir + "/" + str(apps[label]) + ".png"
+		if old_path != new_path and FileAccess.file_exists(old_path) and not FileAccess.file_exists(new_path):
+			if DirAccess.rename_absolute(old_path, new_path) == OK:
+				moved += 1
+	return moved
+
+func migrate_android_art(apps: Dictionary):
+	var art_dir = str(root_path + PATH_IMAGES + "ANDROID").replace("//", "/")
+	var marker = art_dir + "/.package_names"
+	if FileAccess.file_exists(marker):
+		return
+	DirAccess.make_dir_recursive_absolute(art_dir)
+	print("Moved " + str(move_app_art(art_dir, apps)) + " app covers to package names")
+	FileAccess.open(marker, FileAccess.WRITE).store_string("1")
 
 func press_confirm():
 	if confirm_swapped:
@@ -1639,13 +2300,94 @@ func press_back():
 func disallow_scroll():
 	disable_scroll = true
 
+func handle_touch_buttons(event) -> bool:
+	if letter_scroller != null and letter_scroller.active:
+		return false
+	if event is InputEventScreenTouch and event.pressed:
+		var action = touch_buttons.button_at(event.position) if touch_buttons.visible else ""
+		touch_buttons.poke()
+		if action == "":
+			return false
+		vibrate(BUTTON_BUZZ_MS)
+		touch_buttons.press(action)
+		return true
+	if event is InputEventScreenTouch and touch_buttons.pressed != "":
+		var action = touch_buttons.pressed
+		touch_buttons.release()
+		if touch_buttons.button_at(event.position) == action:
+			match action:
+				"confirm":
+					press_confirm()
+				"back":
+					press_back()
+				_:
+					press_action(action)
+		return true
+	return event is InputEventScreenDrag and touch_buttons.pressed != ""
+
+func handle_letter_touch(event) -> bool:
+	if event is InputEventScreenTouch and event.pressed:
+		if not letters_allowed() or not letter_scroller.in_band(event.position):
+			return false
+		if touch_buttons != null and touch_buttons.visible and touch_buttons.button_at(event.position) != "":
+			return false
+		letter_scroller.begin(true)
+		letter_scroller.follow(event.position.y)
+		return letter_scroller.active
+	if not letter_scroller.active or not letter_scroller.by_touch:
+		return false
+	if event is InputEventScreenDrag:
+		letter_scroller.follow(event.position.y)
+		return true
+	if event is InputEventScreenTouch:
+		letter_scroller.finish()
+		return true
+	return false
+
+func press_action(action: String):
+	Input.action_press(action)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release(action)
+
+func _notification(what):
+	if what == NOTIFICATION_APPLICATION_PAUSED and message != null and not option_list.is_empty():
+		store_position()
+		store_list_positions()
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		press_back()
+
+const BUTTON_ACTIONS = ["select", "back", "favorite", "start", "options"]
+const BUTTON_BUZZ_MS = 25
+
+static func is_button_press(event) -> bool:
+	if not (event is InputEventKey or event is InputEventJoypadButton) or not event.pressed or event.is_echo():
+		return false
+	return BUTTON_ACTIONS.any(func(action): return event.is_action(action))
+
 func _input(event):
+	if is_button_press(event):
+		vibrate(BUTTON_BUZZ_MS)
+	if touch_buttons != null and (event is InputEventKey or event is InputEventJoypadButton) and event.pressed:
+		touch_buttons.dismiss()
 	if event.is_action_pressed("ui_cancel"):
 		vibrate(40)
 		press_back()
 		get_viewport().set_input_as_handled()
 		return
-	if !touch_enabled:
+	if !touch_enabled or not Settings.get_setting(Settings.CFG_TOUCH_ENABLED):
+		return
+	if letter_scroller != null and handle_letter_touch(event):
+		get_viewport().set_input_as_handled()
+		return
+	if touch_buttons != null and handle_touch_buttons(event):
+		get_viewport().set_input_as_handled()
+		return
+	if panel_open() and (event is InputEventScreenTouch or event is InputEventScreenDrag):
+		touch_position = null
+		touch_start_position = null
+		confirm_hold_time = null
+		settings_panel.touch(event)
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
@@ -1660,26 +2402,17 @@ func _input(event):
 			touch_momentum = 0.0
 			pending_special = false
 			pending_back = false
-			confirm_hold_time = Time.get_ticks_msec()
+			if Navigator.current_screen == "storage_wait":
+				confirm_hold_time = Time.get_ticks_msec()
 		else:
 			if touch_position == null or touch_start_position == null:
 				touch_position = null
 				touch_start_position = null
 				confirm_hold_time = null
 				return
-			var diff = touch_position - touch_start_position
-			var elapsed = Time.get_ticks_msec() - touch_start_time
 			confirm_hold_time = null
 			if touch_is_scrolling:
 				touch_momentum = touch_velocity
-			elif diff.x < -window_width / 8.0 and abs(diff.x) > abs(diff.y) * 1.2:
-				vibrate(40)
-				press_back()
-			elif pending_special:
-				Navigator.go_to_special()
-			elif elapsed < 400 and diff.length() < text_height:
-				vibrate(30)
-				press_confirm()
 			touch_position = null
 	if event is InputEventScreenDrag:
 		if touch_position == null or touch_start_position == null:

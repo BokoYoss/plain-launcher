@@ -1,0 +1,11 @@
+{
+	"action": "me.magnum.melonds.nightly.LAUNCH_ROM",
+	"componentPackage": "me.magnum.melonds.nightly",
+	"componentClass": "me.magnum.melonds.ui.emulator.EmulatorActivity",
+	"extras": {
+		"uri": "{game_saf}"
+	},
+	"systems": [
+		"NDS"
+	]
+}

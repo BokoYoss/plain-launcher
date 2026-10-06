@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "org.mupen64plusae",
+	"componentClass": "paulscode.android.mupen64plusae.MainActivity",
+	"data": "{game}",
+	"systems": [
+		"N64"
+	]
+}

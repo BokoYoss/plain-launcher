@@ -1,0 +1,11 @@
+{
+	"action": "android.intent.action.MAIN",
+	"componentPackage": "com.github.stenzek.duckstation",
+	"componentClass": "com.github.stenzek.duckstation.EmulationActivity",
+	"extras": {
+		"bootPath": "{game}"
+	},
+	"systems": [
+		"PS"
+	]
+}

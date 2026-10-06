@@ -1,0 +1,8 @@
+{
+	"componentPackage": "com.panda3ds.pandroid",
+	"componentClass": "com.panda3ds.pandroid.app.MainActivity",
+	"providedFile": "{game}",
+	"systems": [
+		"N3DS"
+	]
+}

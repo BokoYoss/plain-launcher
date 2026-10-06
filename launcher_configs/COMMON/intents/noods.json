@@ -1,0 +1,15 @@
+{
+	"componentPackage": "com.hydra.noods",
+	"componentClass": "com.hydra.noods.FileBrowser",
+	"flags": [
+		"FLAG_ACTIVITY_CLEAR_TASK",
+		"FLAG_ACTIVITY_CLEAR_TOP"
+	],
+	"extras": {
+		"LaunchPath": "{game}"
+	},
+	"systems": [
+		"GBA",
+		"NDS"
+	]
+}

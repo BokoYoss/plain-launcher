@@ -1,0 +1,10 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "org.dolphinemu.dolphinemu",
+	"componentClass": "org.dolphinemu.dolphinemu.ui.main.MainActivity",
+	"data": "{game}",
+	"systems": [
+		"GAMECUBE",
+		"WII"
+	]
+}

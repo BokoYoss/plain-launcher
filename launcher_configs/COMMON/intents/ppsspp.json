@@ -1,0 +1,9 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "org.ppsspp.ppsspp",
+	"componentClass": "org.ppsspp.ppsspp.PpssppActivity",
+	"data": "{game}",
+	"systems": [
+		"PSP"
+	]
+}

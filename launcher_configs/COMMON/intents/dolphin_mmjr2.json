@@ -1,0 +1,12 @@
+{
+	"action": "android.intent.action.VIEW",
+	"componentPackage": "org.dolphinemu.mmjr",
+	"componentClass": "org.dolphinemu.dolphinemu.ui.main.MainActivity",
+	"extras": {
+		"AutoStartFile": "{game_saf}"
+	},
+	"systems": [
+		"GAMECUBE",
+		"WII"
+	]
+}

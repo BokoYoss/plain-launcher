@@ -1,0 +1,11 @@
+{
+	"action": "android.intent.action.MAIN",
+	"componentPackage": "com.epsxe.ePSXe",
+	"componentClass": "com.epsxe.ePSXe.ePSXe",
+	"extras": {
+		"com.epsxe.ePSXe.isoName": "{game}"
+	},
+	"systems": [
+		"PS"
+	]
+}
