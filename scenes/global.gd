@@ -846,7 +846,9 @@ func set_up_slots():
 	message.set("theme_override_font_sizes/font_size", prompt_text_size())
 	set_list_shift(list_shift)
 	#message.visible = false
-	var custom_font = Settings.get_setting(Settings.CFG_FONT)
+	var custom_font = Settings.supported_font(Settings.get_setting(Settings.CFG_FONT))
+	if custom_font != Settings.get_setting(Settings.CFG_FONT):
+		Settings.store(Settings.CFG_FONT, custom_font)
 	if custom_font != null and ResourceLoader.exists(custom_font):
 		font = ResourceLoader.load(custom_font)
 	refresh_fonts()

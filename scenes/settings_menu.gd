@@ -9,7 +9,7 @@ const ALIGNMENT_NAMES = ["Left", "Center", "Right"]
 const COVER_BORDER = Vector2(8, 8)
 const FONT_DIR = "res://launcher_configs/COMMON/fonts"
 const DEFAULT_FONT = "res://launcher_configs/COMMON/fonts/Rubik/Rubik-Medium.ttf"
-const FONT_WEIGHTS = ["Light", "Regular", "Medium", "Bold", "ExtraBold"]
+const FONT_WEIGHTS = ["Light", "Medium", "Bold"]
 const SGDB_VALIDATE_URL = "https://www.steamgriddb.com/api/v2/search/autocomplete/test"
 const OFL_URL = "https://openfontlicense.org"
 
@@ -47,7 +47,7 @@ static func font_weights(family: String) -> Array:
 	return FONT_WEIGHTS.filter(func(w): return ResourceLoader.exists(font_path(family, w)))
 
 static func current_font_path() -> String:
-	var path = Settings.get_setting(Settings.CFG_FONT)
+	var path = Settings.supported_font(Settings.get_setting(Settings.CFG_FONT))
 	return path if path != null and path != "" else DEFAULT_FONT
 
 func _with_font(opt: option, path: String) -> option:

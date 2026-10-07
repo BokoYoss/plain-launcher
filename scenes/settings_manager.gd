@@ -13,6 +13,7 @@ const CFG_CAPS_LOCK = "CAPS_LOCK"
 const CFG_SCALER = "SCALER"
 const CFG_VIBRATE = "VIBRATE"
 const CFG_FONT = "FONT"
+const RETIRED_FONT_WEIGHTS = {"Regular": "Medium", "ExtraBold": "Bold"}
 const CFG_SHOW_ART = "SHOW_ART"
 const CFG_VISUAL_BORDER = "VISUAL_BORDER"
 const CFG_VISUAL_SYSTEM_BORDER = "VISUAL_SYSTEM_BORDER_ENABLED"
@@ -225,3 +226,14 @@ func _deserialize(data: Dictionary) -> Dictionary:
 		else:
 			result[key] = val
 	return result
+
+static func supported_font(path):
+	if path == null or path == "" or ResourceLoader.exists(path):
+		return path
+	var file = str(path).get_file().get_basename()
+	var weight = file.get_slice("-", file.get_slice_count("-") - 1)
+	if RETIRED_FONT_WEIGHTS.has(weight):
+		var swapped = str(path).get_base_dir() + "/" + file.trim_suffix(weight) + RETIRED_FONT_WEIGHTS[weight] + ".ttf"
+		if ResourceLoader.exists(swapped):
+			return swapped
+	return null

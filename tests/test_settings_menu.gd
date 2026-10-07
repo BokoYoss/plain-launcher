@@ -363,3 +363,11 @@ func test_nearby_covers_stop_at_the_bars():
 	assert_eq(Global.nearby_crop(100.0, 200.0, 60.0, 1000.0), Vector2(60.0, 0.0), "top trimmed at the title bar")
 	assert_eq(Global.nearby_crop(980.0, 200.0, 60.0, 1000.0), Vector2(0.0, 80.0), "bottom trimmed at the prompt bar")
 	assert_eq(Global.nearby_crop(500.0, 200.0, 60.0, 1000.0), Vector2.ZERO, "fully visible untouched")
+
+func test_retired_font_weights_fall_back():
+	var base = "res://launcher_configs/COMMON/fonts/Rubik/Rubik-"
+	assert_eq(Settings.supported_font(base + "Regular.ttf"), base + "Medium.ttf", "Regular becomes Medium")
+	assert_eq(Settings.supported_font(base + "ExtraBold.ttf"), base + "Bold.ttf", "ExtraBold becomes Bold")
+	assert_eq(Settings.supported_font(base + "Light.ttf"), base + "Light.ttf", "kept weights stay")
+	assert_eq(Settings.supported_font("res://launcher_configs/COMMON/fonts/Gone/Gone-Medium.ttf"), null, "missing family uses the default")
+	assert_eq(Settings.supported_font(null), null, "no font stays unset")
