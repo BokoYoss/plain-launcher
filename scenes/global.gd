@@ -690,62 +690,6 @@ func store_version():
 		return
 	version_file.store_string(VERSION)
 
-func reimport_all_configs():
-	if root_path == "" or root_path == null:
-		return
-	const BUNDLED_BASE = "res://launcher_configs/"
-	const SKIP_EXTENSIONS = [".png", ".import", ".ttf", ".otf"]
-	var base_dir = DirAccess.open(BUNDLED_BASE)
-	if base_dir == null:
-		return
-	for system in base_dir.get_directories():
-		var system_dir = DirAccess.open(BUNDLED_BASE + system)
-		if system_dir == null:
-			continue
-		system_dir.list_dir_begin()
-		var file = system_dir.get_next()
-		while file != "":
-			if not system_dir.current_is_dir():
-				var skip = false
-				for ext in SKIP_EXTENSIONS:
-					if file.ends_with(ext):
-						skip = true
-						break
-				if not skip:
-					var src = BUNDLED_BASE + system + "/" + file
-					var dst_dir = root_path + PATH_CONFIG + system + "/"
-					var dst = dst_dir + file
-					DirAccess.make_dir_recursive_absolute(dst_dir)
-					var content = FileAccess.get_file_as_string(src)
-					var f = FileAccess.open(dst, FileAccess.WRITE)
-					if f:
-						f.store_string(content)
-						f.close()
-			file = system_dir.get_next()
-	# Copy COMMON files (intents.json, alias.json, lists.json)
-	var common_dir = DirAccess.open(BUNDLED_BASE + "COMMON")
-	if common_dir:
-		common_dir.list_dir_begin()
-		var file = common_dir.get_next()
-		while file != "":
-			if not common_dir.current_is_dir():
-				var skip = false
-				for ext in SKIP_EXTENSIONS:
-					if file.ends_with(ext):
-						skip = true
-						break
-				if not skip:
-					var src = BUNDLED_BASE + "COMMON/" + file
-					var dst_dir = root_path + PATH_CONFIG + "COMMON/"
-					DirAccess.make_dir_recursive_absolute(dst_dir)
-					var content = FileAccess.get_file_as_string(src)
-					var f = FileAccess.open(dst_dir + file, FileAccess.WRITE)
-					if f:
-						f.store_string(content)
-						f.close()
-			file = common_dir.get_next()
-	print("reimport_all_configs: done")
-
 func migrate_configs():
 	if root_path == "" or root_path == null:
 		return
@@ -767,8 +711,6 @@ func _migrate_choices():
 		var user_choices = read_json_dict(user_path)
 		var changed = not FileAccess.file_exists(user_path)
 		for key in bundled.keys():
-			if key.to_upper() == "EXTENSIONS":
-				continue  # user manages extensions manually
 			var bundled_arr: Array = bundled[key]
 			var user_arr: Array = user_choices.get(key, [])
 			for item in bundled_arr:
@@ -3063,7 +3005,11 @@ func shake_refresh():
 func vibrate(duration):
 	if !Settings.get_setting(Settings.CFG_VIBRATE):
 		return
-	Input.vibrate_handheld(duration)
+	if Platform.is_android():
+		Input.vibrate_handheld(duration)
+		return
+	for pad in Input.get_connected_joypads():
+		Input.start_joy_vibration(pad, 0.8, 0.0, duration / 1000.0)
 
 static func needs_confirm_button(already_set: bool, pads: int) -> bool:
 	return not already_set and pads > 0

@@ -35,6 +35,23 @@ static func home_dir() -> String:
 	var home = OS.get_environment("HOME")
 	return home if home != "" else OS.get_environment("USERPROFILE")
 
+static func loading_screen_override() -> String:
+	return OS.get_environment("PLAIN_LAUNCHER_OVERRIDE")
+
+static func loading_screen_on() -> bool:
+	return not FileAccess.file_exists(loading_screen_override())
+
+static func set_loading_screen(on: bool):
+	var path = loading_screen_override()
+	if path == "":
+		return
+	if on:
+		DirAccess.remove_absolute(path)
+		return
+	var file = FileAccess.open(path, FileAccess.WRITE)
+	if file:
+		file.store_string("[application]\n\nboot_splash/show_image.portmaster=false\n")
+
 static func uses_xbox_layout() -> bool:
 	return is_desktop_build() and not "portmaster" in tags()
 
@@ -45,7 +62,7 @@ func has_web_art() -> bool:
 	return _android_plugin != null
 
 func has_native_dialogs() -> bool:
-	return DisplayServer.has_feature(DisplayServer.FEATURE_NATIVE_DIALOG_FILE)
+	return not "portmaster" in tags() and DisplayServer.has_feature(DisplayServer.FEATURE_NATIVE_DIALOG_FILE)
 
 func has_file_picker() -> bool:
 	return _android_plugin != null or has_native_dialogs()

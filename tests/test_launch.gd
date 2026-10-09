@@ -318,3 +318,9 @@ func test_positions_keyed_by_list_not_title():
 	assert_eq(Global.list_key("system_browser", "GBA", ""), "system_browser", "systems list key ignores the last system opened")
 	assert_eq(Global.list_key("android_apps", "ANDROID", ""), "android_apps", "one key for the app list")
 	assert_eq(Global.list_key("file_browser", "", "/Storage"), "/storage", "file browser keeps its folder key")
+
+func test_updates_add_new_bundled_extensions():
+	Global.migrate_configs()
+	var choices = Global.read_json_dict(root + "/Config/GBA/choices.json")
+	assert_eq(choices["EXTENSIONS"], ["gba", "zip", "7z"], "new bundled extensions offered after an update")
+	assert_eq(choices["EMULATOR"].slice(0, 2), ["emu_a", "emu_b"], "existing choices kept first")

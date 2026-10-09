@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gameList>
+  <game>
+    <path>./Plain Launcher.sh</path>
+    <name>Plain Launcher</name>
+    <desc>A minimal emulation frontend. Browse your ROMs by system with box art and launch them with your handheld's own RetroArch.</desc>
+    <developer>bokoyoss</developer>
+    <publisher>bokoyoss</publisher>
+    <genre>Other</genre>
+    <image>./plainlauncher/cover.jpg</image>
+  </game>
+</gameList>

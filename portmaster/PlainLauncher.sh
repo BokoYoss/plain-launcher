@@ -79,12 +79,9 @@ echo "ROMs: $ROMS_DIRS"
 
 for rt in "$weston_runtime" "$godot_runtime"; do
   if [ ! -f "$controlfolder/libs/${rt}.squashfs" ]; then
-    if [ ! -f "$controlfolder/harbourmaster" ]; then
-      pm_message "This port requires the latest PortMaster to run, please go to https://portmaster.games/ for more info."
-      sleep 5
-      exit 1
-    fi
-    $ESUDO "$controlfolder/harbourmaster" --quiet --no-check runtime_check "${rt}.squashfs"
+    pm_message "Missing the ${rt} runtime. Reinstall Plain Launcher from PortMaster with Wi-Fi on."
+    sleep 5
+    exit 1
   fi
 done
 
@@ -111,11 +108,11 @@ while true; do
     env $controller_env XDG_DATA_HOME="$CONFDIR" \
     PLAIN_LAUNCHER_COMMANDS=1 PLAIN_LAUNCHER_PLATFORM=portmaster PLAIN_LAUNCHER_SYNC_LOADING=1 PLAIN_LAUNCHER_CFW="$CFW_NAME" PLAIN_LAUNCHER_ESUDO="${ESUDO%% *}" \
     PLAIN_LAUNCHER_ROOT="$GAMEDIR/PlainLauncher" PLAIN_LAUNCHER_ROMS="$ROMS_DIRS" PLAIN_LAUNCHER_ART="$ART_DIR" PLAIN_LAUNCHER_APPS_PATHS="$APPS_DIRS" \
-    PLAIN_LAUNCHER_LAUNCH_FILE="$LAUNCH_FILE" RETROARCH_BIN="$RETROARCH_BIN" RETROARCH_CONFIG="$RETROARCH_CONFIG" RETROARCH_CORES="$RETROARCH_CORES" \
+    PLAIN_LAUNCHER_LAUNCH_FILE="$LAUNCH_FILE" PLAIN_LAUNCHER_OVERRIDE="$GAMEDIR/override.cfg" RETROARCH_BIN="$RETROARCH_BIN" RETROARCH_CONFIG="$RETROARCH_CONFIG" RETROARCH_CORES="$RETROARCH_CORES" \
     "$godot_dir/$godot_executable" --resolution "${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}" -f \
     --rendering-driver opengl3_es --audio-driver ALSA --main-pack "$GAMEDIR/plainlauncher.pck"
   $ESUDO "$weston_dir/westonwrap.sh" cleanup
-  $ESUDO kill -9 $(pidof gptokeyb) 2>/dev/null
+  pm_gptokeyb_finish
   [ -f "$LAUNCH_FILE" ] || break
   echo "Launching: $(cat "$LAUNCH_FILE")"
   bash "$LAUNCH_FILE"

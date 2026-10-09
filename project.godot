@@ -16,6 +16,8 @@ config/quit_on_go_back=false
 config/features=PackedStringArray("4.4", "GL Compatibility")
 boot_splash/bg_color=Color(0, 0, 0, 1)
 boot_splash/show_image=false
+boot_splash/show_image.portmaster=true
+boot_splash/image.portmaster="res://sprites/boot_splash.png"
 config/icon="res://icon.svg"
 
 [autoload]

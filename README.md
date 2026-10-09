@@ -139,7 +139,7 @@ Android won't let one app close another, so whether a new game replaces the runn
 
 1. Build [plain-launcher-android-plugin](https://github.com/BokoYoss/plain-launcher-android-plugin) into `addons/` with `setup-plugin.sh` (Linux) or `setup-plugin.bat` (Windows). It needs JDK 17.
 2. Open the project in Godot 4.6.
-3. Export with the included presets: **Android**, **Linux Desktop**, **Windows Desktop**, or **Linux PortMaster** (just the `.pck`- pair it with `portmaster/PlainLauncher.sh`, saved as `Plain Launcher.sh`). Desktop and PortMaster builds land in `output/`, which is gitignored.
+3. Export with the included presets: **Android**, **Linux Desktop**, **Windows Desktop**, or **Linux PortMaster** (just the `.pck`- run `portmaster/package.sh` afterward to zip it with the launch script and PortMaster files). Desktop and PortMaster builds land in `output/`, which is gitignored.
 
 For ScreenScraper in your own builds, copy `secrets.example.json` to `secrets.json` (it's gitignored) and set `SCREENSCRAPER_URL` to your ScreenScraper proxy. Without it, ScreenScraper just shows as unavailable.
 
@@ -157,8 +157,9 @@ Plain Launcher also runs on PortMaster handhelds, PC, and the Steam Deck. These 
 
 Plain Launcher runs as a PortMaster port. It's been tested on muOS, dArkOS, ROCKNIX, and Knulli, and other PortMaster systems should work too.
 
-1. Grab `PlainLauncher-portmaster.zip` and unzip it into your ports folder. You get `Plain Launcher.sh` and a `plainlauncher` folder. On muOS the script goes in `ROMS/Ports` and the folder in `ports`.
-2. Launch **Plain Launcher** from Ports.
+1. Copy `PlainLauncher-portmaster.zip` as is into PortMaster's `autoinstall` folder (on muOS, `MUOS/PortMaster/autoinstall`).
+2. Open PortMaster with Wi-Fi on. It installs Plain Launcher and downloads the Godot runtime it needs.
+3. Launch **Plain Launcher** from Ports.
 
 It finds your existing ROM folders (muOS names like `ROMS/Game Boy Advance` or lowercase ones like `roms/gba`) and launches games with the handheld's own RetroArch and cores. On muOS it shows your muOS box art too.
 
@@ -166,10 +167,11 @@ It finds your existing ROM folders (muOS names like `ROMS/Game Boy Advance` or l
 - Some systems ship a few cores as 32-bit (like gpSP on ROCKNIX). Plain Launcher spots those and runs them with the handheld's 32-bit RetroArch.
 - Only RetroArch is set up so far. Add other emulators as custom launchers- see [Command launchers](#command-launchers).
 - Settings → Launchers → **RetroArch config** picks between the handheld's RetroArch config and Plain Launcher's own copy, so you can change RetroArch settings without touching the rest of your setup.
-- **Launch on Boot** at the top of Settings shows whether the handheld starts in Plain Launcher, and how to set it up. Plain Launcher only reads the system's settings and never changes them:
+- **Launch on Boot** in Settings, above Reboot and Shut down, shows whether the handheld starts in Plain Launcher, and how to set it up. Plain Launcher only reads the system's settings and never changes them:
   - **muOS:** set Configuration → General Settings → Device Startup to **Last Game**, then open Plain Launcher from Ports once. Quitting Plain Launcher drops you back into muOS.
   - **ROCKNIX and Knulli:** in EmulationStation, highlight Plain Launcher in Ports, open its game options and choose **Launch this game at startup**.
 - Settings has **Reboot device** and **Shut down device** just above Quit.
+- Plain Launcher's folder (configs, art, and settings) is always `ports/plainlauncher/PlainLauncher`, so there's no storage setup on handhelds.
 - If something goes wrong, check `ports/plainlauncher/log.txt`.
 
 ### PC and Steam Deck

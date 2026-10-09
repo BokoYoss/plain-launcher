@@ -1,0 +1,36 @@
+{
+    "version": 4,
+    "name": "plainlauncher.zip",
+    "items": [
+        "Plain Launcher.sh",
+        "plainlauncher"
+    ],
+    "items_opt": null,
+    "attr": {
+        "title": "Plain Launcher",
+        "porter": [
+            "bokoyoss"
+        ],
+        "desc": "A minimal emulation frontend. Browse your ROMs by system with box art and launch them with your handheld's own RetroArch.",
+        "desc_md": null,
+        "inst": "Ready to run. Plain Launcher finds your existing ROM folders and RetroArch cores.",
+        "inst_md": null,
+        "genres": [
+            "other"
+        ],
+        "image": {},
+        "rtr": true,
+        "exp": false,
+        "runtime": [
+            "weston_pkg_0.2.squashfs",
+            "godot_4.6.3.squashfs"
+        ],
+        "store": [],
+        "availability": "full",
+        "reqs": [],
+        "arch": [
+            "aarch64"
+        ],
+        "min_glibc": ""
+    }
+}

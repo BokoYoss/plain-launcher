@@ -421,7 +421,45 @@ func test_storage_lives_in_panel():
 	var storage = menu.general_menu().items.filter(func(o): return o.clean == "Storage")[0]
 	storage.trigger(Actions.CONFIRM)
 	assert_eq(panel.opened_screens, [], "no storage screen")
-	assert_true(_labels(panel.pushed[0]).has("Use removable storage"), "storage choices listed")
+	var plugin = Platform._android_plugin
+	Platform._android_plugin = null
+	var desktop = _labels(menu.storage_menu).slice(1)
+	var dialogs = Platform.has_native_dialogs()
+	Platform._android_plugin = Object.new()
+	var android = _labels(menu.storage_menu).slice(1)
+	Platform._android_plugin = plugin
+	assert_eq(desktop, ["Use home folder", "Choose a folder"] if dialogs else ["Use home folder"], "only choices that work off Android")
+	assert_eq(android, ["Use on-device storage", "Use removable storage", "Choose a folder", "Grant file permissions"], "Android keeps every choice")
+
+func test_handhelds_keep_their_port_folder():
+	var saved = OS.get_environment("PLAIN_LAUNCHER_PLATFORM")
+	OS.set_environment("PLAIN_LAUNCHER_PLATFORM", "portmaster")
+	var labels = _labels(menu.general_menu)
+	var dialogs = Platform.has_native_dialogs()
+	OS.set_environment("PLAIN_LAUNCHER_PLATFORM", saved)
+	assert_false("Storage" in labels, "no storage choices")
+	assert_false("Remove Plain Launcher directory" in labels, "no removing the port folder")
+	assert_true("Refresh file cache" in labels, "rest of General stays")
+	assert_false(dialogs, "no file dialogs under Weston")
+
+func test_loading_screen_toggle_writes_override():
+	var saved = OS.get_environment("PLAIN_LAUNCHER_PLATFORM")
+	var path = OS.get_user_data_dir().path_join("override_test.cfg")
+	DirAccess.remove_absolute(path)
+	OS.set_environment("PLAIN_LAUNCHER_PLATFORM", "portmaster")
+	OS.set_environment("PLAIN_LAUNCHER_OVERRIDE", path)
+	var row = menu.general_menu().items.filter(func(o): return o.clean == "Loading screen")
+	assert_eq(row.size(), 1, "loading screen toggle on handhelds")
+	assert_true(Platform.loading_screen_on(), "on by default")
+	Platform.set_loading_screen(false)
+	assert_false(Platform.loading_screen_on(), "off writes the override")
+	assert_true(FileAccess.get_file_as_string(path).contains("boot_splash/show_image.portmaster=false"), "override hides the splash")
+	Platform.set_loading_screen(true)
+	assert_false(FileAccess.file_exists(path), "on removes the override")
+	OS.set_environment("PLAIN_LAUNCHER_OVERRIDE", "")
+	var hidden = menu.general_menu().items.filter(func(o): return o.clean == "Loading screen")
+	OS.set_environment("PLAIN_LAUNCHER_PLATFORM", saved)
+	assert_eq(hidden.size(), 0, "no toggle without the port script")
 
 func test_scraper_helpers():
 	assert_eq(ArtScraper.pick_ss_art_url([{"type": "box-2D", "region": "jp", "url": "j"}, {"type": "box-2D", "region": "us", "url": "u"}]), "u", "prefers US over JP")

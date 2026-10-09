@@ -122,11 +122,11 @@ func storage_menu() -> Dictionary:
 	current.set_meta("value", str(Global.root_path))
 	return {"title": "Storage", "width": SlidePanel.WIDE_RATIO, "items": [
 		current,
-		option.with_callback("Use on-device storage", func(): Platform.create_internal_storage(_storage_chosen, _storage_failed)),
-		option.with_callback("Use removable storage", func(): Platform.create_external_storage(_storage_chosen, _storage_failed)),
-		option.with_callback("Choose a folder", func(): Platform.choose_storage_directory(_storage_chosen, _storage_failed)),
-		option.with_callback("Grant file permissions", func(): Platform.request_permissions()),
-	], "selection": 1}
+		option.with_callback("Use on-device storage" if Platform.is_android() else "Use home folder", func(): Platform.create_internal_storage(_storage_chosen, _storage_failed)),
+		option.with_callback("Use removable storage", func(): Platform.create_external_storage(_storage_chosen, _storage_failed)) if Platform.is_android() else null,
+		option.with_callback("Choose a folder", func(): Platform.choose_storage_directory(_storage_chosen, _storage_failed)) if Platform.has_file_picker() else null,
+		option.with_callback("Grant file permissions", func(): Platform.request_permissions()) if Platform.is_android() else null,
+	].filter(func(item): return item != null), "selection": 1}
 
 func _storage_chosen(selection):
 	var problem = StorageSetup.use_selection(str(selection))
@@ -191,10 +191,7 @@ func _cycle_index(current: int, count: int, direction: int) -> int:
 	return posmod(current + direction, count)
 
 func main_menu() -> Dictionary:
-	var items = []
-	if BootHook.supported():
-		items.append(launch_on_boot_row())
-	items.append_array([
+	var items = [
 		option.with_callback("General", func(): panel.push_menu(general_menu)),
 		option.with_callback("Visuals", func(): panel.push_menu(visual_menu)),
 		option.with_callback("Audio", func(): panel.push_menu(audio_menu)),
@@ -203,7 +200,9 @@ func main_menu() -> Dictionary:
 		option.with_callback("Scraper", func(): panel.push_menu(scraper_menu)),
 		option.with_callback("Launchers", func(): panel.push_menu(launchers_menu)),
 		option.with_callback("Credits", func(): panel.push_menu(credits_menu)),
-	])
+	]
+	if BootHook.supported():
+		items.append(launch_on_boot_row())
 	if "portmaster" in Platform.tags():
 		items.append_array([
 			_confirm("Reboot device?", "Reboot", func(): _power("reboot", "Rebooting...")),
@@ -332,25 +331,23 @@ func cover_menu() -> Dictionary:
 	]}
 
 func general_menu() -> Dictionary:
+	var handheld = "portmaster" in Platform.tags()
 	return {"title": "General", "items": [
 		option.with_callback("Refresh file cache", func():
 			Global.refresh_file_cache()
 			Global.show_message("File cache refreshed", true)),
-		option.with_callback("Storage", func(): panel.push_menu(storage_menu)),
-		_confirm("Reimport all configs?", "Overwrite", func():
-			Global.reimport_all_configs()
-			Global.refresh_file_cache()
-			Global.show_message("Configs reimported", true)),
+		null if handheld else option.with_callback("Storage", func(): panel.push_menu(storage_menu)),
+		_value("Loading screen", Platform.loading_screen_on(), func(_d): Platform.set_loading_screen(not Platform.loading_screen_on()), func(): Platform.set_loading_screen(true)) if handheld and Platform.loading_screen_override() != "" else null,
 		_confirm("Restore all game settings?", "Restore", func():
 			Global.clear_all_settings()
 			Global.show_message("Game settings restored", true)),
-		_confirm("Remove Plain Launcher directory?", "Delete it", func():
+		null if handheld else _confirm("Remove Plain Launcher directory?", "Delete it", func():
 			var root = DirAccess.open(Global.root_path)
 			if root:
 				root.rename_absolute(Global.root_path, Global.root_path + "-" + str(Time.get_unix_time_from_system()))
 				Global.clear_dir_cache()
 				panel.open_screen("file_browser")),
-	]}
+	].filter(func(item): return item != null)}
 
 func controls_menu() -> Dictionary:
 	return {"title": "Controls", "items": [
