@@ -488,7 +488,7 @@ func refresh_prompt_bar():
 	if prompt_bar != null:
 		prompt_bar.queue_redraw()
 
-var VERSION = "30"
+var VERSION = "31"
 
 # Cover art
 @onready var cover := $BoxContainer
