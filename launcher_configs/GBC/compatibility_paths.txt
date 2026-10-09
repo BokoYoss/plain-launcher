@@ -1,3 +1,4 @@
 /gbc
 /Roms/Game Boy Color (GBC)
 /Roms/GBC
+/Game Boy Color

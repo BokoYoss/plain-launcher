@@ -1,0 +1,26 @@
+{
+	"command": ["retroarch", "-f", "-L", "{env:HOME}/.config/retroarch/cores/{core}_libretro.so", "{game}"],
+	"systems": [
+		"ARCADE",
+		"DOOM",
+		"DREAMCAST",
+		"GB",
+		"GBA",
+		"GBC",
+		"GENESIS",
+		"MASTERSYSTEM",
+		"N3DS",
+		"N64",
+		"NDS",
+		"NEOGEO",
+		"NES",
+		"NGP",
+		"PCE",
+		"PS",
+		"PSP",
+		"QUAKE",
+		"SATURN",
+		"SEGACD",
+		"SNES"
+	]
+}

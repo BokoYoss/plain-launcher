@@ -1,6 +1,6 @@
 extends RefCounted
 
-const SS_API_BASE = "https://jk7vbrz6o4.execute-api.us-west-2.amazonaws.com/prod/screenscraper"
+const SECRETS_FILE = "res://secrets.json"
 const SGDB_SEARCH_BASE = "https://www.steamgriddb.com/api/v2/search/autocomplete/"
 const SGDB_GRIDS_BASE = "https://www.steamgriddb.com/api/v2/grids/game/"
 const STEP_SECONDS = 0.5
@@ -27,32 +27,68 @@ var done = false
 var http_search: HTTPRequest
 var http_image: HTTPRequest
 var http_extra: HTTPRequest
+var search_override = ""
 
 func _init(slide_panel, scraped_item):
 	panel = slide_panel
 	item = scraped_item
 	game_list = games_for(item)
 
+static func already_has_art(game) -> bool:
+	var path = Global.get_image_path(game)
+	return path != "" and FileAccess.file_exists(path)
+
 static func games_for(target) -> Array:
 	if not target.is_dir:
 		return [target]
 	var games = []
-	var system_dir_path = Global.root_path + "/" + Global.PATH_GAMES + "/" + target.system
-	for file in DirAccess.get_files_at(system_dir_path):
-		var opt = option.new()
-		opt.filename = file
-		opt.absolute_path = system_dir_path + "/" + file
-		opt.system = target.system
-		opt.clean = Global.clean_regex.sub(file.get_basename(), "", true)
-		games.append(opt)
+	var seen = {}
+	var extensions = Global.get_system_settings(target.system).get("EXTENSIONS")
+	for system_dir_path in Global._get_all_system_paths(target.system):
+		if not DirAccess.dir_exists_absolute(system_dir_path):
+			continue
+		for file in DirAccess.get_files_at(system_dir_path):
+			var path = system_dir_path.path_join(file)
+			if not Global.is_game_file(file, extensions) or seen.has(path):
+				continue
+			seen[path] = true
+			var opt = option.new()
+			opt.filename = file
+			opt.absolute_path = path
+			opt.system = target.system
+			opt.clean = Global.clean_regex.sub(file.get_basename(), "", true)
+			games.append(opt)
 	return games
 
+static func response_text(body: PackedByteArray) -> String:
+	if body.size() > 2 and body[0] == 0x1f and body[1] == 0x8b:
+		var unpacked = body.decompress_dynamic(-1, FileAccess.COMPRESSION_GZIP)
+		if not unpacked.is_empty():
+			return unpacked.get_string_from_utf8()
+	return body.get_string_from_utf8()
+
+const FINGERPRINT_MAX_BYTES = 64 * 1024 * 1024
+
+static func rom_fingerprint(path: String) -> String:
+	if path == "" or not FileAccess.file_exists(path):
+		return ""
+	var size = FileAccess.get_size(path)
+	var params = "&romtaille=" + str(size)
+	if size <= FINGERPRINT_MAX_BYTES:
+		params += "&md5=" + FileAccess.get_md5(path)
+	return params
+
+static func masked_url(url: String) -> String:
+	return RegEx.create_from_string("(ssid|sspassword)=[^&]*").sub(url, "$1=***", true)
+
+static func screenscraper_url() -> String:
+	if not FileAccess.file_exists(SECRETS_FILE):
+		return ""
+	var secrets = JSON.parse_string(FileAccess.get_file_as_string(SECRETS_FILE))
+	return str(secrets.get("SCREENSCRAPER_URL", "")) if secrets is Dictionary else ""
+
 static func backends() -> Array:
-	var names = []
-	if Settings.get_setting(Settings.CFG_SCREENSCRAPER_URL) != "":
-		names.append("ScreenScraper")
-	names.append("SteamGridDB")
-	return names
+	return ["ScreenScraper", "SteamGridDB"] if screenscraper_url() != "" else ["SteamGridDB"]
 
 static func missing_credentials(backend: String, system: String) -> String:
 	if backend == "screenscraper":
@@ -63,6 +99,71 @@ static func missing_credentials(backend: String, system: String) -> String:
 	elif Settings.get_setting(Settings.CFG_SGDB_KEY) == "":
 		return "No SteamGridDB key set"
 	return ""
+
+const SGDB_CANDIDATES = 3
+const ROMAN_NUMERALS = {"ii": "2", "iii": "3", "iv": "4", "v": "5", "vi": "6", "vii": "7", "viii": "8", "ix": "9"}
+
+static func name_tokens(text: String) -> Array:
+	var cleaned = RegEx.create_from_string("[^a-z0-9]+").sub(text.to_lower(), " ", true).strip_edges()
+	var tokens = []
+	for token in cleaned.split(" ", false):
+		tokens.append(ROMAN_NUMERALS.get(token, token))
+	return tokens
+
+static func match_score(name: String, query: String) -> float:
+	var name_tokens_list = name_tokens(name)
+	var query_tokens = name_tokens(query)
+	if name_tokens_list == query_tokens:
+		return 1000.0
+	var score = 0.0
+	for token in query_tokens:
+		if token in name_tokens_list:
+			score += 10.0
+		elif token.is_valid_int():
+			score -= 100.0
+	for token in name_tokens_list:
+		if not token in query_tokens:
+			score -= 30.0 if token.is_valid_int() else 2.0
+	if not name_tokens_list.is_empty() and not query_tokens.is_empty() and name_tokens_list[0] == query_tokens[0]:
+		score += 5.0
+	return score
+
+static func numbers_in(text: String) -> Array:
+	return name_tokens(text).filter(func(token): return token.is_valid_int())
+
+static func names_agree(names: Array, query: String) -> bool:
+	var wanted = numbers_in(query)
+	if wanted.is_empty():
+		return true
+	for name in names:
+		var found = numbers_in(name)
+		if wanted.all(func(number): return number in found):
+			return true
+	return false
+
+static func ranked_matches(results: Array, query: String) -> Array:
+	var ranked = []
+	for i in range(results.size()):
+		ranked.append([match_score(str(results[i].get("name", "")), query), i, results[i]])
+	ranked.sort_custom(func(a, b): return a[0] > b[0] or (a[0] == b[0] and a[1] < b[1]))
+	return ranked.map(func(entry): return entry[2])
+
+static func default_search(game, backend: String) -> String:
+	return game.clean if backend == "steamgriddb" else game.filename
+
+func search_term(game) -> String:
+	return search_override if search_override != "" else default_search(game, Settings.get_setting(Settings.CFG_SCRAPER_BACKEND))
+
+func can_edit_search() -> bool:
+	return done and not item.is_dir and game_list.size() == 1
+
+func edit_search():
+	panel.text_input("Search for", search_term(game_list[0]), false, func(text: String):
+		if text.strip_edges() == "":
+			return
+		search_override = text.strip_edges()
+		panel.back()
+		start(false))
 
 func target_name() -> String:
 	return game_list[0].clean if game_list.size() == 1 and not item.is_dir else str(game_list.size()) + " games"
@@ -101,9 +202,14 @@ func progress_menu() -> Dictionary:
 		var count = option.new_option(row[0])
 		count.set_meta("value", str(row[1]))
 		items.append(count)
+	var actions = []
+	if can_edit_search():
+		actions.append(items.size())
+		items.append(option.with_callback("Edit Search", edit_search))
+	actions.append(items.size())
 	items.append(option.with_callback("Done" if done else "Stop", func(): panel.back()))
 	var title = "Finished" if done else "Scraping " + str(mini(current_index + 1, game_list.size())) + " / " + str(game_list.size())
-	return {"title": title, "items": items, "selection": items.size() - 1, "locked": true, "choices": true, "on_cancel": func():
+	return {"title": title, "items": items, "selection": items.size() - 1, "selectable": actions, "choices": true, "on_cancel": func():
 		scraping = false
 		Global.img_texture_override = null
 		Global.refresh_art()}
@@ -131,13 +237,16 @@ func start(skip_existing: bool):
 			panel.add_child(request)
 	scraping = true
 	done = false
+	found_count = 0
+	skipped_count = 0
+	failed_count = 0
 	panel.push_menu(progress_menu)
 	current_index = 0
 	while current_index < game_list.size() and scraping:
 		var game = game_list[current_index]
 		_show(game.clean, "Searching...")
-		var save_path = Global.get_image_path(game)
-		if skip_existing and FileAccess.file_exists(save_path):
+		var save_path = Global.own_image_path(game)
+		if skip_existing and already_has_art(game):
 			skipped_count += 1
 			current_index += 1
 			continue
@@ -197,11 +306,13 @@ func find_art_url(game) -> String:
 	return await find_art_url_ss(game)
 
 func find_art_url_ss(game) -> String:
-	var url = (SS_API_BASE
+	var url = (screenscraper_url()
 		+ "?ssid=" + Settings.get_setting(Settings.CFG_SS_USER).uri_encode()
 		+ "&sspassword=" + Settings.get_setting(Settings.CFG_SS_PASS).uri_encode()
 		+ "&systemeid=" + str(SYSTEM_IDS.get(game.system.to_upper(), 0))
-		+ "&romnom=" + game.filename.uri_encode())
+		+ "&romnom=" + search_term(game).uri_encode()
+		+ rom_fingerprint(game.absolute_path))
+	print("SCRAPE " + masked_url(url))
 	while scraping:
 		if http_search.request(url) != OK:
 			return _fail(game, "Request failed")
@@ -215,14 +326,19 @@ func find_art_url_ss(game) -> String:
 			return _fail(game, "Bad credentials (HTTP " + str(code) + ")")
 		if args[0] != HTTPRequest.RESULT_SUCCESS:
 			return _fail(game, "Network error (" + str(args[0]) + ")")
+		if code == 404:
+			return _fail(game, "Not found on ScreenScraper")
 		if code != 200:
 			return _fail(game, "HTTP " + str(code))
-		var json = JSON.parse_string(args[3].get_string_from_utf8())
+		var json = JSON.parse_string(response_text(args[3]))
 		if json == null:
 			return _fail(game, "Invalid response from server")
 		var jeu = json.get("response", {}).get("jeu", null)
 		if jeu == null:
 			return _fail(game, "Not found in database")
+		var names = jeu.get("noms", []).map(func(n): return str(n.get("text", "")))
+		if search_override != "" and not names_agree(names, search_override):
+			return _fail(game, "ScreenScraper matched \"" + (names[0] if not names.is_empty() else "another game") + "\" instead")
 		var art_url = pick_ss_art_url(jeu.get("medias", []))
 		if art_url == "":
 			return _fail(game, "No box art available")
@@ -241,7 +357,7 @@ static func pick_ss_art_url(medias: Array) -> String:
 
 func find_art_url_sgdb(game) -> String:
 	var headers = ["Authorization: Bearer " + Settings.get_setting(Settings.CFG_SGDB_KEY)]
-	if http_search.request(SGDB_SEARCH_BASE + game.clean.uri_encode(), headers) != OK:
+	if http_search.request(SGDB_SEARCH_BASE + search_term(game).uri_encode(), headers) != OK:
 		return _fail(game, "SteamGridDB search failed")
 	var search = await http_search.request_completed
 	if search[0] != HTTPRequest.RESULT_SUCCESS:
@@ -250,16 +366,20 @@ func find_art_url_sgdb(game) -> String:
 		return _fail(game, "Invalid API key (HTTP " + str(search[1]) + ")")
 	if search[1] != 200:
 		return _fail(game, "SteamGridDB HTTP " + str(search[1]))
-	var search_json = JSON.parse_string(search[3].get_string_from_utf8())
+	var search_json = JSON.parse_string(response_text(search[3]))
 	if search_json == null or not search_json.get("success", false) or search_json.get("data", []).is_empty():
 		return _fail(game, "Not found on SteamGridDB")
-	var game_id = search_json.data[0].get("id", 0)
-	if http_extra.request(SGDB_GRIDS_BASE + str(game_id) + "?dimensions=600x900,342x482,660x930", headers) != OK:
-		return _fail(game, "SteamGridDB grids request failed")
-	var grids = await http_extra.request_completed
-	if grids[0] != HTTPRequest.RESULT_SUCCESS or grids[1] != 200:
-		return _fail(game, "SteamGridDB grids error (HTTP " + str(grids[1]) + ")")
-	var grids_json = JSON.parse_string(grids[3].get_string_from_utf8())
-	if grids_json == null or not grids_json.get("success", false) or grids_json.get("data", []).is_empty():
-		return _fail(game, "No box art on SteamGridDB")
-	return grids_json.data[0].get("url", "")
+	var candidates = ranked_matches(search_json.data, search_term(game))
+	print("SGDB matches for " + search_term(game) + ": " + str(candidates.slice(0, SGDB_CANDIDATES).map(func(c): return c.get("name", ""))))
+	for candidate in candidates.slice(0, SGDB_CANDIDATES):
+		if not scraping:
+			return ""
+		if http_extra.request(SGDB_GRIDS_BASE + str(candidate.get("id", 0)) + "?dimensions=600x900,342x482,660x930", headers) != OK:
+			return _fail(game, "SteamGridDB grids request failed")
+		var grids = await http_extra.request_completed
+		if grids[0] != HTTPRequest.RESULT_SUCCESS or grids[1] != 200:
+			return _fail(game, "SteamGridDB grids error (HTTP " + str(grids[1]) + ")")
+		var grids_json = JSON.parse_string(response_text(grids[3]))
+		if grids_json != null and grids_json.get("success", false) and not grids_json.get("data", []).is_empty():
+			return grids_json.data[0].get("url", "")
+	return _fail(game, "No box art on SteamGridDB")

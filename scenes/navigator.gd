@@ -67,6 +67,7 @@ func go_to_main():
 			Global.store_version()
 		StorageSetup.add_missing_systems(DirAccess.open(Global.root_path))
 		push("system_browser")
+		Global.ask_for_confirm_button.call_deferred()
 
 func go_to_special():
 	Global.special_item = Global.get_selected()

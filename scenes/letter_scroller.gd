@@ -43,7 +43,8 @@ func band_width() -> float:
 	return maxf(48.0, Global.scaled_text_height * 0.45)
 
 func top() -> float:
-	return Global.title.position.y + Global.title.size.y if Global.title != null else 0.0
+	var title_bottom = Global.title.position.y + Global.title.size.y if Global.title != null else 0.0
+	return title_bottom
 
 func bottom() -> float:
 	return Global.window_height - Global.prompt_bar_height()
@@ -76,6 +77,7 @@ func begin(from_touch: bool = false):
 	starts = groups.starts
 	if letters.is_empty():
 		return
+	print("Letter scroller opened (touch: %s)" % from_touch)
 	sync_to_selection()
 	active = true
 	visible = true
@@ -84,6 +86,7 @@ func begin(from_touch: bool = false):
 	_slide_to(1.0, Tween.TRANS_BACK)
 
 func finish():
+	print("Letter scroller closed")
 	active = false
 	by_touch = false
 	peeking = false
@@ -112,6 +115,7 @@ func choose(new_index: int):
 		return
 	index = clampi(new_index, 0, letters.size() - 1)
 	Global.vibrate(20)
+	Global.play_sound("move")
 	Global.jump_to_row(starts[index])
 	_bounce()
 
@@ -152,13 +156,25 @@ func _process(_delta):
 	if visible:
 		queue_redraw()
 	if Global.cover != null and not Global.cover_on_left() and (visible or slide > 0.0):
-		Global.cover.position.x = Global.window_width * Global.COVER_ANCHOR.x - slide * cover_shift()
+		Global.cover.position.x = Global.window_width * Global.cover_anchor().x - slide * cover_shift()
 
 func bubble_offset() -> float:
-	return maxf(40.0, Global.scaled_text_height * 0.6) * 1.4
+	return bubble_radius() * 1.4
+
+func bubble_radius() -> float:
+	return maxf(40.0, Global.scaled_text_height * 0.6)
+
+func popup_left() -> float:
+	return Global.window_width - band_width() - bubble_offset() - bubble_radius() * POP_SCALE
+
+static func clearance(cover_right: float, popup_edge: float, gap: float) -> float:
+	return maxf(0.0, cover_right - popup_edge + gap)
 
 func cover_shift() -> float:
-	return band_width() + bubble_offset() + maxf(40.0, Global.scaled_text_height * 0.6) * 1.3
+	if Global.cover_halo == null:
+		return 0.0
+	var cover_right = Global.window_width * Global.cover_anchor().x + Global.cover_halo.half_size.x
+	return clearance(cover_right, popup_left(), Global.scaled_text_height * 0.15)
 
 func _draw():
 	if letters.is_empty():
@@ -172,19 +188,16 @@ func _draw():
 	var tuck = (1.0 - slide) * width * 1.5
 	var x = Global.window_width - width / 2.0 + tuck
 	var size = minf(width * 0.55, row * 0.85)
-	if Global.cover != null and Global.cover.visible and Global.cover_halo != null and not Global.cover_on_left():
-		var cover_right = Global.cover.position.x + Global.cover_halo.half_size.x
-		draw_rect(Rect2(cover_right, column_top, Global.window_width - cover_right, bottom() - column_top), bg)
 	draw_rect(Rect2(Global.window_width - width + tuck, column_top, width, bottom() - column_top), Color(fg, 0.12))
 	for i in range(letters.size()):
 		var y = column_top + row * (i + 0.5)
 		var letter_size = int(size)
 		var letter_width = font.get_string_size(letters[i], HORIZONTAL_ALIGNMENT_LEFT, -1, letter_size).x
 		draw_string(font, Vector2(x - letter_width / 2.0, y + letter_size * 0.36), letters[i], HORIZONTAL_ALIGNMENT_LEFT, -1, letter_size, Color(fg, 1.0 if i == index else 0.5))
-	var bubble = maxf(40.0, Global.scaled_text_height * 0.6) * pop
+	var bubble = bubble_radius() * pop
 	var finger_y = clampf(column_top + row * (index + 0.5), column_top + bubble, bottom() - bubble)
 	var center = Vector2(Global.window_width - width - bubble_offset() + tuck, finger_y)
-	draw_circle(center, bubble, Color(fg, 0.85))
+	draw_circle(center, bubble, Color(fg, 0.85), true, -1.0, true)
 	var big = int(bubble * 1.1)
 	var big_width = font.get_string_size(letters[index], HORIZONTAL_ALIGNMENT_LEFT, -1, big).x
 	draw_string(font, center + Vector2(-big_width / 2.0, big * 0.36), letters[index], HORIZONTAL_ALIGNMENT_LEFT, -1, big, bg)

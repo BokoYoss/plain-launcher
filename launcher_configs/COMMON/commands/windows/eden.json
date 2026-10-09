@@ -1,0 +1,8 @@
+{
+	"command": ["C:/Eden/eden.exe", "-f", "-g", "{game}"],
+	"programs": [
+		"C:/Program Files/Eden/eden.exe",
+		"{env:USERPROFILE}/scoop/apps/eden/current/eden.exe"
+	],
+	"systems": ["SWITCH"]
+}

@@ -1,0 +1,2 @@
+/Sega Saturn/box
+/saturn/covers

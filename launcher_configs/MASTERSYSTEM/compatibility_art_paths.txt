@@ -1,0 +1,2 @@
+/Sega Master System/box
+/mastersystem/covers

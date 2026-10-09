@@ -1,0 +1,26 @@
+{
+	"command": ["C:/RetroArch-Win64/retroarch.exe", "-f", "-L", "C:/RetroArch-Win64/cores/{core}_libretro.dll", "{game}"],
+	"systems": [
+		"ARCADE",
+		"DOOM",
+		"DREAMCAST",
+		"GB",
+		"GBA",
+		"GBC",
+		"GENESIS",
+		"MASTERSYSTEM",
+		"N3DS",
+		"N64",
+		"NDS",
+		"NEOGEO",
+		"NES",
+		"NGP",
+		"PCE",
+		"PS",
+		"PSP",
+		"QUAKE",
+		"SATURN",
+		"SEGACD",
+		"SNES"
+	]
+}

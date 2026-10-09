@@ -1,0 +1,4 @@
+{
+	"command": ["{env:HOME}/Applications/yuzu.AppImage", "-f", "-g", "{game}"],
+	"systems": ["SWITCH"]
+}

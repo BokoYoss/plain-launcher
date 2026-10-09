@@ -3,3 +3,4 @@
 /Roms/Neo-Geo Pocket Color (NGPC)
 /ROMs/ngp
 /ROMs/ngpc
+/Neo-Geo Pocket

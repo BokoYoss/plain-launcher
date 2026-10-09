@@ -1,0 +1,4 @@
+{
+	"command": ["flatpak", "run", "--filesystem=/run/media", "--filesystem={game_dir}", "net.pcsx2.PCSX2", "-batch", "-fullscreen", "--", "{game}"],
+	"systems": ["PS2"]
+}

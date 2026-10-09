@@ -1,0 +1,8 @@
+{
+	"command": ["C:/Program Files/RMG/RMG.exe", "--fullscreen", "{game}"],
+	"programs": [
+		"C:/RMG/RMG.exe",
+		"{env:USERPROFILE}/scoop/apps/rmg/current/RMG.exe"
+	],
+	"systems": ["N64"]
+}

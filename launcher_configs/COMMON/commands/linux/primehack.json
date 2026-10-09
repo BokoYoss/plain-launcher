@@ -1,0 +1,4 @@
+{
+	"command": ["flatpak", "run", "--filesystem=/run/media", "--filesystem={game_dir}", "io.github.shiiion.primehack", "-b", "-e", "{game}"],
+	"systems": ["GAMECUBE", "WII"]
+}

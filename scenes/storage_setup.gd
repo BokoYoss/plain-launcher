@@ -1,7 +1,14 @@
 extends RefCounted
 
+static func desktop_root(selection: String) -> String:
+	return selection if selection.get_file() == "PlainLauncher" else selection.path_join("PlainLauncher")
+
 static func open_selection(selection: String) -> DirAccess:
-	var path = selection.replace(" ", "")
+	if OS.get_name() != "Android":
+		var target = desktop_root(selection)
+		DirAccess.make_dir_recursive_absolute(target)
+		return DirAccess.open(target)
+	var path = selection.replace(" ", "") if OS.get_name() == "Android" else selection
 	var dir = DirAccess.open(path)
 	if dir:
 		return dir
@@ -33,12 +40,12 @@ static func use_selection(selection: String) -> String:
 static func copy_builtin_contents(root: DirAccess, relative_dir: String):
 	var config_dir = DirAccess.open("res://launcher_configs/" + relative_dir)
 	for config_file in config_dir.get_files() + config_dir.get_directories():
-		if OS.get_name() == "Android" and config_file.get_extension() == "import":
+		if OS.has_feature("template") and config_file.get_extension() == "import":
 			continue
 		var builtin = config_dir.get_current_dir() + "/" + config_file
 		var dest = root.get_current_dir() + Global.PATH_CONFIG + relative_dir + "/" + config_file
 		if config_dir.dir_exists(config_file):
-			if relative_dir + "/" + config_file != "COMMON/intents":
+			if not relative_dir + "/" + config_file in ["COMMON/intents", "COMMON/commands"]:
 				root.make_dir_recursive(dest)
 				copy_builtin_contents(root, relative_dir + "/" + config_file)
 		elif FileAccess.file_exists(dest):

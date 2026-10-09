@@ -1,0 +1,26 @@
+{
+	"command": ["flatpak", "run", "--filesystem=/run/media", "--filesystem={game_dir}", "org.libretro.RetroArch", "-f", "-L", "{env:HOME}/.var/app/org.libretro.RetroArch/config/retroarch/cores/{core}_libretro.so", "{game}"],
+	"systems": [
+		"ARCADE",
+		"DOOM",
+		"DREAMCAST",
+		"GB",
+		"GBA",
+		"GBC",
+		"GENESIS",
+		"MASTERSYSTEM",
+		"N3DS",
+		"N64",
+		"NDS",
+		"NEOGEO",
+		"NES",
+		"NGP",
+		"PCE",
+		"PS",
+		"PSP",
+		"QUAKE",
+		"SATURN",
+		"SEGACD",
+		"SNES"
+	]
+}

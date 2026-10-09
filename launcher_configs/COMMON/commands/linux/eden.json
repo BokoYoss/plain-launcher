@@ -1,0 +1,4 @@
+{
+	"command": ["{env:HOME}/Applications/Eden.AppImage", "-f", "-g", "{game}"],
+	"systems": ["SWITCH"]
+}

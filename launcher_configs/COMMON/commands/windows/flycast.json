@@ -1,0 +1,8 @@
+{
+	"command": ["C:/Flycast/flycast.exe", "{game}"],
+	"programs": [
+		"C:/Program Files/Flycast/flycast.exe",
+		"{env:USERPROFILE}/scoop/apps/flycast/current/flycast.exe"
+	],
+	"systems": ["DREAMCAST"]
+}

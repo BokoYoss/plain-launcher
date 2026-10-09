@@ -1,0 +1,4 @@
+{
+	"command": ["{env:HOME}/Applications/DuckStation.AppImage", "-batch", "-fullscreen", "--", "{game}"],
+	"systems": ["PS"]
+}

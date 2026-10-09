@@ -14,6 +14,7 @@ var _labels: Array = []
 var _values: Array = []
 var _checks: Array = []
 var _arrows: Array = []
+var _cut_off = {}
 var choice_rows = false
 var stripes = true
 var stripe_margin = 0.0
@@ -65,6 +66,7 @@ func refresh():
 		_values.append(_new_label(HORIZONTAL_ALIGNMENT_RIGHT))
 	_checks = []
 	_arrows = []
+	_cut_off = {}
 	for i in range(_labels.size()):
 		var label: Label = _labels[i]
 		var value_label: Label = _values[i]
@@ -105,7 +107,15 @@ func refresh():
 			value_label.position = Vector2(size.x - used + gap, y)
 			value_label.size = Vector2(used - gap, row_height)
 		label.size = Vector2(size.x - used, row_height)
+		var measure_font = item_font if item_font != null else get_theme_default_font()
+		var cut = measure_font.get_string_size(item.clean, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > label.size.x + 1
+		if value_label.text != "":
+			cut = cut or measure_font.get_string_size(value_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > value_label.size.x + 1
+		_cut_off[index] = cut
 	queue_redraw()
+
+func is_cut_off(index: int) -> bool:
+	return _cut_off.get(index, false)
 
 static func is_plain_action(item, static_list: bool) -> bool:
 	return not static_list and not item.has_meta("checked") and not item.has_meta("value") and item.handles(Actions.CONFIRM)
@@ -121,6 +131,8 @@ func _new_label(alignment: HorizontalAlignment) -> Label:
 	return label
 
 func _draw():
+	if static_rows and selection >= scroll_offset and selection < mini(items.size(), scroll_offset + visible_rows()):
+		draw_rect(Rect2(-stripe_margin, (selection - scroll_offset) * row_height, size.x + stripe_margin * 2.0, row_height), Color(color, 0.15))
 	if stripes:
 		for i in range(visible_rows()):
 			if (scroll_offset + i) % 2 == 1 and scroll_offset + i < items.size():

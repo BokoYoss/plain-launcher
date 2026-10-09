@@ -2,3 +2,4 @@
 /pnenginecd
 /Roms/PC-Engine (PCE)
 /Roms/PCE
+/PC-Engine

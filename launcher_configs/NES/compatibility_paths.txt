@@ -2,3 +2,4 @@
 /Roms/Nintendo Entertainment System (FC)
 /Roms/FC
 /ROMs/nes
+/Nintendo Entertainment System

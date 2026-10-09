@@ -16,3 +16,4 @@ android/*
 *.vpk
 
 secrets.json
+output/

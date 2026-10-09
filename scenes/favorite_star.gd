@@ -10,4 +10,6 @@ static func star_points(center: Vector2, radius: float) -> PackedVector2Array:
 	return points
 
 func _draw():
-	draw_colored_polygon(star_points(size / 2.0, minf(size.x, size.y) / 2.0), Color.WHITE)
+	var star = star_points(size / 2.0, minf(size.x, size.y) / 2.0 - 0.5)
+	draw_colored_polygon(star, Color.WHITE)
+	draw_polyline(star + PackedVector2Array([star[0]]), Color.WHITE, 1.0, true)

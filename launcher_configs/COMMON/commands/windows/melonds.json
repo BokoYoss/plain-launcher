@@ -1,0 +1,8 @@
+{
+	"command": ["C:/Program Files/melonDS/melonDS.exe", "-f", "{game}"],
+	"programs": [
+		"C:/melonDS/melonDS.exe",
+		"{env:USERPROFILE}/scoop/apps/melonds/current/melonDS.exe"
+	],
+	"systems": ["NDS"]
+}

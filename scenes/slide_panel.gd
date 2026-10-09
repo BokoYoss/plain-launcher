@@ -56,6 +56,8 @@ func _init():
 	add_child(edge)
 	title_label = Label.new()
 	title_label.uppercase = true
+	title_label.clip_text = true
+	title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	add_child(title_label)
 	title_line = ColorRect.new()
 	add_child(title_line)
@@ -65,6 +67,14 @@ func _init():
 	list = ListView.new()
 	add_child(list)
 	visible = false
+
+static func title_width(full: float, corner_width: float, gap: float) -> float:
+	return maxf(0.0, full - (corner_width + gap if corner_width > 0.0 else 0.0))
+
+func _fit_title():
+	var size = corner_label.get_theme_font_size("font_size")
+	var corner_width = _font().get_string_size(corner_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x if corner_label.text != "" else 0.0
+	title_label.size.x = title_width(corner_label.size.x, corner_width, size)
 
 func _font() -> Font:
 	if Global.font != null:
@@ -151,6 +161,7 @@ func _layout():
 	corner_label.add_theme_font_size_override("font_size", title_size)
 	corner_label.add_theme_font_override("font", _font())
 	corner_label.modulate = Color(fg, 0.45)
+	_fit_title()
 	list.font = _font()
 	list.font_size = int(Global.scaled_text_height * 0.3)
 	list.row_height = list.font_size * 1.6
@@ -196,6 +207,31 @@ func open(builder: Callable, from_side: String = "right", closed: Callable = Cal
 	_selections = []
 	show_menu(false)
 
+func text_input(prompt: String, value: String, password: bool, on_text: Callable):
+	if Platform.has_text_input():
+		Platform.show_text_input(prompt, value, password, on_text)
+		return
+	var keyboard = TextKeyboard.new()
+	keyboard.prompt = prompt
+	keyboard.set_text(value)
+	keyboard.password = password
+	var finish = func():
+		var typed = keyboard.text
+		back()
+		on_text.call(typed)
+	keyboard.on_done = finish
+	keyboard.on_cancel = back
+	push_menu(func(): return {"title": "Enter text", "custom": keyboard, "width": FULL_RATIO, "tap_types": true,
+		"prompts": [["confirm", "Type"], ["favorite", "Delete"], ["shoulders", "Cursor"], ["start", "Done"], ["back", "Cancel"]],
+		"on_confirm": func():
+			if keyboard.press(keyboard.index):
+				finish.call(),
+		"on_start": func(): keyboard.backspace(),
+		"on_menu": finish,
+		"repeat_held": func(): return Input.is_action_pressed("favorite") or (Global.confirm_held() and keyboard.on_delete()),
+		"on_repeat": func(): keyboard.backspace(),
+	})
+
 func push_menu(builder: Callable):
 	_selections.append([list.selection, list.scroll_offset])
 	menus.append(builder)
@@ -218,11 +254,14 @@ func show_menu(keep_selection: bool = true):
 		_slide.tween_property(self, "position", _target_position(), SLIDE_SECONDS)
 	title_label.text = _menu.get("title", "")
 	corner_label.text = corner_text
+	_fit_title()
 	_set_custom(_menu.get("custom"))
 	list.static_rows = _menu.get("static", false)
 	list.choice_rows = _menu.get("choices", false)
 	list.set_items(_menu.get("items", []), keep_selection)
 	if (not keep_selection or _menu.get("locked", false)) and _menu.has("selection"):
+		list.select(_menu.selection)
+	elif _menu.has("selectable") and not list.selection in _menu.selectable and _menu.has("selection"):
 		list.select(_menu.selection)
 	_update_prompts()
 	if Global.cover != null:
@@ -266,6 +305,7 @@ func close():
 	if _paused_screen != null and is_instance_valid(_paused_screen):
 		_paused_screen.set_deferred("process_mode", Node.PROCESS_MODE_INHERIT)
 	_paused_screen = null
+	Global.block_confirm()
 	Global.disable_scroll = false
 	Global.set_prompts(_saved_prompts)
 	if _slide != null:
@@ -283,6 +323,7 @@ func close():
 		closed.call()
 
 func open_screen(screen: String):
+	_paused_screen = null
 	close()
 	visible = false
 	Navigator.push(screen)
@@ -291,15 +332,52 @@ func _update_prompts():
 	if _menu.has("prompts"):
 		Global.set_prompts(_menu.prompts)
 		return
-	if _menu.get("static", false):
-		Global.set_prompts([["back", "Back"]])
-		return
-	var prompts = [["confirm", "Select"]]
 	var item = list.selected()
+	var full = item != null and shows_full_text(item)
+	if _menu.get("static", false):
+		Global.set_prompts(([["confirm", "Show all"]] if full else []) + [["back", "Back"]])
+		return
+	var prompts = [["confirm", "Show all" if full else "Select"]]
 	if item != null and item.handles(Actions.START):
 		prompts.append(["favorite", "Default"])
 	prompts.append(["back", "Back" if menus.size() > 1 else "Close"])
 	Global.set_prompts(prompts)
+
+const FULL_TEXT_LINE = 60
+
+static func wrap_text(text: String, width: int) -> Array:
+	var lines = []
+	var line = ""
+	for word in text.split(" "):
+		while word.length() > width:
+			if line != "":
+				lines.append(line)
+				line = ""
+			lines.append(word.left(width))
+			word = word.substr(width)
+		if line == "":
+			line = word
+		elif line.length() + 1 + word.length() <= width:
+			line += " " + word
+		else:
+			lines.append(line)
+			line = word
+	if line != "":
+		lines.append(line)
+	return lines
+
+func shows_full_text(item) -> bool:
+	return not item.handles(Actions.CONFIRM) and list.is_cut_off(list.selection)
+
+func show_full_text(title: String, text: String):
+	push_menu(func(): return {"title": title, "static": true, "width": FULL_RATIO,
+		"items": wrap_text(text, FULL_TEXT_LINE).map(func(line): return option.new_option(line))})
+
+func show_full_text_of(item):
+	if item.has_meta("value"):
+		show_full_text(item.clean, str(item.get_meta("value")))
+	else:
+		show_full_text(_menu.get("title", ""), item.clean)
 
 func peek():
 	if _peek != null:
@@ -322,12 +400,6 @@ func _process(_delta):
 	if custom != null:
 		_process_custom(now)
 		return
-	if list.static_rows:
-		if Input.is_action_just_pressed("start") or Input.is_action_just_pressed("options"):
-			close()
-		elif Global.back_pressed():
-			back()
-		return
 	var stick = _stick_step(now)
 	if _menu.get("locked", false):
 		pass
@@ -348,7 +420,10 @@ func _process(_delta):
 	elif (Global.right_just_pressed() or stick.x > 0) and item != null:
 		item.trigger(Actions.DIRECTION, [1])
 	elif Global.confirm_pressed() and item != null:
-		item.trigger(Actions.CONFIRM)
+		if item.handles(Actions.CONFIRM):
+			item.trigger(Actions.CONFIRM)
+		elif shows_full_text(item):
+			show_full_text_of(item)
 	elif Input.is_action_just_pressed("favorite") and item != null:
 		item.trigger(Actions.START)
 	elif Input.is_action_just_pressed("start") or Input.is_action_just_pressed("options"):
@@ -357,6 +432,8 @@ func _process(_delta):
 		back()
 
 func _process_custom(now: int):
+	if custom is TextKeyboard and custom.typed_frame == Engine.get_process_frames():
+		return
 	var direction = Vector2i(int(Global.right_just_pressed()) - int(Global.left_just_pressed()), int(Global.down_just_pressed()) - int(Global.up_just_pressed()))
 	if direction != Vector2i.ZERO:
 		_hold_until = now + HOLD_DELAY_MS
@@ -368,14 +445,39 @@ func _process_custom(now: int):
 		direction = _stick_step(now)
 	if direction != Vector2i.ZERO:
 		custom.move(direction.x, direction.y)
+	if custom.has_method("move_cursor"):
+		if Input.is_action_just_pressed("shoulder_l"):
+			custom.move_cursor(-1)
+		elif Input.is_action_just_pressed("shoulder_r"):
+			custom.move_cursor(1)
+	var repeated = _repeated
+	_update_repeat(now)
 	if Global.confirm_pressed() and _menu.has("on_confirm"):
-		_menu.on_confirm.call()
+		if not repeated:
+			_menu.on_confirm.call()
 	elif Input.is_action_just_pressed("favorite") and _menu.has("on_start"):
 		_menu.on_start.call()
+	elif Input.is_action_just_pressed("start") and _menu.has("on_menu"):
+		_menu.on_menu.call()
 	elif Input.is_action_just_pressed("start") or Input.is_action_just_pressed("options"):
 		close()
 	elif Global.back_pressed():
 		back()
+
+var _repeat_at = -1
+var _repeated = false
+
+func _update_repeat(now: int):
+	if not _menu.has("repeat_held") or not _menu.repeat_held.call():
+		_repeat_at = -1
+		_repeated = false
+		return
+	if _repeat_at < 0:
+		_repeat_at = now + HOLD_DELAY_MS
+	elif now >= _repeat_at:
+		_menu.on_repeat.call()
+		_repeated = true
+		_repeat_at = now + HOLD_REPEAT_MS
 
 static func stick_direction(tilt: Vector2) -> Vector2i:
 	if absf(tilt.y) > STICK_DEADZONE and absf(tilt.y) >= absf(tilt.x):
@@ -437,9 +539,13 @@ func _scroll_by(dy: float):
 		_touch_accum -= step * list.row_height
 		if list.items.is_empty():
 			continue
+		if _menu.has("selectable"):
+			_move(step)
+			continue
 		var moved = clampi(list.selection + step, 0, list.items.size() - 1)
 		if moved != list.selection:
 			Global.vibrate(30)
+			Global.play_sound("move")
 		list.select(moved)
 		_update_prompts()
 
@@ -453,7 +559,7 @@ func _glide():
 func _tap(at: Vector2):
 	var before = custom.index
 	_touch_pick(at)
-	if custom.index == before and custom.index_at(at - position - custom.position) >= 0 and _menu.has("on_confirm"):
+	if (custom.index == before or _menu.get("tap_types", false)) and custom.index_at(at - position - custom.position) >= 0 and _menu.has("on_confirm"):
 		_menu.on_confirm.call()
 
 func _touch_pick(at: Vector2):
@@ -462,7 +568,24 @@ func _touch_pick(at: Vector2):
 		Global.vibrate(30)
 		custom.pick(found)
 
+static func next_selectable(selectable: Array, current: int, delta: int) -> int:
+	if selectable.is_empty():
+		return current
+	var at = selectable.find(current)
+	if at < 0:
+		return selectable[0] if delta > 0 else selectable[-1]
+	return selectable[posmod(at + delta, selectable.size())]
+
 func _move(delta: int):
+	if _menu.has("selectable"):
+		var target = next_selectable(_menu.selectable, list.selection, delta)
+		if target != list.selection:
+			Global.play_sound("move")
+			Global.vibrate(30)
+			list.select(target)
+			_update_prompts()
+		return
+	Global.play_sound("move")
 	list.move(delta)
 	Global.vibrate(30)
 	_update_prompts()

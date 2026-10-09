@@ -1,0 +1,8 @@
+{
+	"command": ["C:/Program Files/GZDoom/gzdoom.exe", "-iwad", "{game}"],
+	"programs": [
+		"C:/GZDoom/gzdoom.exe",
+		"{env:USERPROFILE}/scoop/apps/gzdoom/current/gzdoom.exe"
+	],
+	"systems": ["DOOM"]
+}

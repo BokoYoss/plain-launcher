@@ -1,0 +1,4 @@
+{
+	"command": ["/opt/muos/script/launch/ext-flycast.sh", "{basename}", "", "{game}"],
+	"systems": ["DREAMCAST"]
+}

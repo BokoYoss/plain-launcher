@@ -1,0 +1,9 @@
+{
+	"command": ["C:/Program Files/PCSX2/pcsx2-qt.exe", "-batch", "-fullscreen", "--", "{game}"],
+	"programs": [
+		"{env:LOCALAPPDATA}/Programs/PCSX2/pcsx2-qt.exe",
+		"C:/PCSX2/pcsx2-qt.exe",
+		"{env:USERPROFILE}/scoop/apps/pcsx2/current/pcsx2-qt.exe"
+	],
+	"systems": ["PS2"]
+}

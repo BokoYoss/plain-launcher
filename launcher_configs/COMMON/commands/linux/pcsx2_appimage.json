@@ -1,0 +1,4 @@
+{
+	"command": ["{env:HOME}/Applications/pcsx2-Qt.AppImage", "-batch", "-fullscreen", "--", "{game}"],
+	"systems": ["PS2"]
+}

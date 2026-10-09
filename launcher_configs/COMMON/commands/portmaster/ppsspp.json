@@ -1,0 +1,4 @@
+{
+	"command": ["/opt/muos/script/launch/ext-ppsspp.sh", "{basename}", "", "{game}"],
+	"systems": ["PSP"]
+}

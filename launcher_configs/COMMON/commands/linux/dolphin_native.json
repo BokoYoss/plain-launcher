@@ -1,0 +1,4 @@
+{
+	"command": ["dolphin-emu", "-b", "-e", "{game}"],
+	"systems": ["GAMECUBE", "WII"]
+}

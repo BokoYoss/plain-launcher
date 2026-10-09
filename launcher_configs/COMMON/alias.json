@@ -40,5 +40,7 @@
 	"duckstation": "Duckstation (PSX)",
 	"retroarch": "Retroarch",
 	"retroarch64": "Retroarch (64 bit)",
-	"retroarch32": "Retroarch (32 bit)"
+	"retroarch32": "Retroarch (32 bit)",
+	"ports": "Ports",
+	"apps": "Apps"
 }

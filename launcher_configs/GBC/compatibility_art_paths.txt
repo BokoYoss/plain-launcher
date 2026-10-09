@@ -1,0 +1,2 @@
+/Nintendo Game Boy Color/box
+/gbc/covers

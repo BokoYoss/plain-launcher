@@ -3,6 +3,8 @@ extends Screen
 var current_dir: DirAccess = null
 
 # Called when the node enters the scene tree for the first time.
+const PROMPTS = [["confirm", "Open"], ["favorite", "Refresh"], ["select", "System Options"], ["start", "Settings"]]
+
 func _ready():
 	Global.no_alias = false
 	Global.fade.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
@@ -10,7 +12,8 @@ func _ready():
 	Global.subscreen = ""
 	Global.title_can_be_blank = true
 	populate_content()
-	Global.set_prompts([["confirm", "Open"], ["select", "System Options"], ["start", "Settings"]])
+	Global.set_prompts(PROMPTS)
+
 
 func populate_content(msg_override=null):
 	Global.clear_visible(Settings.get_setting(Settings.CFG_SYSTEM_TITLE))
@@ -23,7 +26,7 @@ func populate_content(msg_override=null):
 	Global.list_directory_contents(system_dir, true, special, false)
 	var nonempty = Global.get_nonempty_systems()
 	Global.prewarm_dir_cache(nonempty)
-	var shown_special = ["ANDROID"]
+	var shown_special = ["ANDROID"] if OS.get_name() == "Android" else []
 	if not Global.favorites_list.is_empty():
 		shown_special.append("FAVORITES")
 	if not Global.get_recent_list().is_empty():
@@ -47,21 +50,35 @@ func _on_resume():
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
+	if Global.launching:
+		return
 	if Global.confirm_pressed() or Global.last_subscreen != "":
 		var selected_system = Global.get_selected().clean
-		if Global.last_subscreen != "":
+		var restoring = Global.last_subscreen != ""
+		if restoring:
 			selected_system = Global.last_subscreen
 			Global.select_by_filename(selected_system)
 			Global.last_subscreen = ""
 		Global.store_position()
-		if selected_system.to_lower() == "android":
-			Global.subscreen = "ANDROID"
-			Global.clear_visible("Loading..")
-			Navigator.push("android_apps")
-			return
-		Global.special_item = Global.get_selected()
-		Navigator.push("game_browser")
-		Global.subscreen = selected_system
+		var selected = Global.get_selected()
+		var open = func():
+			if selected_system.to_lower() == "android":
+				Global.subscreen = "ANDROID"
+				Global.clear_visible("Loading..")
+				Navigator.push("android_apps")
+				return
+			Global.special_item = selected
+			Navigator.push("game_browser")
+			Global.subscreen = selected_system
+		if restoring:
+			open.call()
+		else:
+			Global.open_with_effect(open)
+		return
+	if Input.is_action_just_pressed("favorite"):
+		Global.refresh_file_cache()
+		Global.shake_refresh()
+		Global.show_message("Refreshed", true)
 		return
 	if Input.is_action_just_pressed("start") or Global.back_pressed():
 		Global.open_settings()

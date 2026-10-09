@@ -1,0 +1,2 @@
+/Arcade/box
+/arcade/covers

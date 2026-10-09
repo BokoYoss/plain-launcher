@@ -1,0 +1,4 @@
+{
+	"command": ["bash", "{game}"],
+	"systems": ["PORTS", "APPS"]
+}

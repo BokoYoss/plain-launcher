@@ -1,0 +1,2 @@
+/Nintendo NES-Famicom/box
+/nes/covers

@@ -1,3 +1,4 @@
 /Roms/Game Boy (GB)
 /Roms/GB
 /gb
+/Game Boy

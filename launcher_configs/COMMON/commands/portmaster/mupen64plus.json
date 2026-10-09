@@ -1,0 +1,4 @@
+{
+	"command": ["/opt/muos/script/launch/ext-mupen64plus.sh", "{basename}", "", "{game}"],
+	"systems": ["N64"]
+}

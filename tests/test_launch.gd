@@ -21,7 +21,7 @@ func before_each():
 	Global.failure_message = ""
 
 	plugin = FakePlugin.new()
-	AndroidInterface._android_plugin = plugin
+	Platform._android_plugin = plugin
 	var nav = _nav()
 	if nav.get_script() != FakeNavigator:
 		nav.set_script(FakeNavigator)
@@ -199,27 +199,27 @@ func test_cancelled_storage_picker_reports_failure():
 	var on_ok = func(p): got.configured.append(p)
 	var on_fail = func(m): got.failed.append(m)
 	for selection in ["FAILURE", null, "", "NOT_FOUND", "/tree/primary:Roms"]:
-		AndroidInterface.request_storage(on_ok, on_fail)
-		AndroidInterface.storage_selection(selection)
+		Platform.request_storage(on_ok, on_fail)
+		Platform.storage_selection(selection)
 	assert_eq(got.failed.size(), 4, "cancel/empty results reported as failures")
 	assert_eq(got.configured, ["/storage/emulated/0/Roms"], "only the real path is configured")
 
 func test_storage_result_only_reaches_latest_requester():
 	var got = {"art": [], "games": []}
-	AndroidInterface.request_storage(func(p): got.art.append(p), Callable())
-	AndroidInterface.request_storage(func(p): got.games.append(p), Callable())
-	AndroidInterface.storage_selection("/tree/primary:Roms")
-	AndroidInterface.storage_selection("/tree/primary:Other")
+	Platform.request_storage(func(p): got.art.append(p), Callable())
+	Platform.request_storage(func(p): got.games.append(p), Callable())
+	Platform.storage_selection("/tree/primary:Roms")
+	Platform.storage_selection("/tree/primary:Other")
 	assert_eq(got.art, [], "earlier screen not notified")
 	assert_eq(got.games, ["/storage/emulated/0/Roms"], "requester notified once")
 
 func test_text_input_only_reaches_requester():
 	var got = {"browser": [], "editor": []}
-	AndroidInterface._android_plugin = TextInputPlugin.new()
-	AndroidInterface.show_text_input("Name", "", false, func(t): got.browser.append(t))
-	AndroidInterface.show_text_input("Field", "", false, func(t): got.editor.append(t))
-	AndroidInterface._on_text_input_complete("value")
-	AndroidInterface._on_text_input_complete("stray")
+	Platform._android_plugin = TextInputPlugin.new()
+	Platform.show_text_input("Name", "", false, func(t): got.browser.append(t))
+	Platform.show_text_input("Field", "", false, func(t): got.editor.append(t))
+	Platform._on_text_input_complete("value")
+	Platform._on_text_input_complete("stray")
 	assert_eq(got.browser, [], "earlier screen not notified")
 	assert_eq(got.editor, ["value"], "requester notified once")
 

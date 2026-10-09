@@ -1,0 +1,2 @@
+/Nintendo Game Boy Advance/box
+/gba/covers

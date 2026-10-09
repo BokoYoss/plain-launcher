@@ -1,0 +1,4 @@
+{
+	"command": ["PPSSPPSDL", "--fullscreen", "{game}"],
+	"systems": ["PSP"]
+}

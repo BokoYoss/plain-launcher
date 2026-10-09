@@ -1,0 +1,9 @@
+{
+	"command": ["C:/Program Files/Azahar/azahar.exe", "{game}"],
+	"programs": [
+		"{env:LOCALAPPDATA}/Programs/Azahar/azahar.exe",
+		"C:/Azahar/azahar.exe",
+		"{env:USERPROFILE}/scoop/apps/azahar/current/azahar.exe"
+	],
+	"systems": ["N3DS"]
+}

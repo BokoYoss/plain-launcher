@@ -135,7 +135,7 @@ func main_menu() -> Dictionary:
 		items.append(toggle)
 		if custom != "":
 			items.append(_value("Name", custom, func():
-				AndroidInterface.show_text_input("Name to show", custom, false, func(text: String):
+				panel.text_input("Name to show", custom, false, func(text: String):
 					_rename(text))))
 	var is_retroarch = str(settings.get("EMULATOR", "")).to_lower().begins_with("retroarch")
 	for key in shown_keys(settings, Global.get_system_settings_options(item.system)):
@@ -151,10 +151,10 @@ func main_menu() -> Dictionary:
 		row.callbacks[Actions.START] = func(): _reset_setting(key)
 		items.append(row)
 	if item.is_dir:
-		items.append(option.with_callback("Emulators", func(): panel.push_menu(emulators_menu)))
+		items.append(option.with_callback("Available emulators", func(): panel.push_menu(emulators_menu)))
 		items.append(option.with_callback("Additional game paths", func(): panel.push_menu(paths_menu)))
 	if item.system == "ANDROID":
-		items.append(option.with_callback("App settings", func(): AndroidInterface.app_settings(item.absolute_path)))
+		items.append(option.with_callback("App settings", func(): Platform.app_settings(item.absolute_path)))
 	items.append(option.with_callback("Find art" if item.is_dir else "Find cover art", func(): panel.push_menu(art_sources_menu)))
 	if Global.is_system_item(item) and FileAccess.file_exists(Global.custom_art_path(item)):
 		items.append(_confirm("Remove custom art?", "Remove", func():
@@ -204,14 +204,28 @@ func extensions_menu() -> Dictionary:
 			save()))
 	return {"title": "File extensions", "items": items}
 
+static func emulator_groups(all: Array, for_system: Array) -> Array:
+	var own = all.filter(func(id): return id in for_system)
+	var other = all.filter(func(id): return id not in for_system)
+	own.sort()
+	other.sort()
+	return [own, other]
+
 func emulators_menu() -> Dictionary:
-	var all: Array = Launcher.load_intents().keys()
-	all.sort()
+	var groups = emulator_groups(Launcher.load_intents().keys(), Launcher.emulators_for_system(item.system))
 	var active: Array = Global.get_system_settings_options(item.system).get("EMULATOR", [])
 	var items = []
-	for id in all:
+	for id in groups[0]:
 		items.append(_check(id, id in active, func(): toggle_emulator(id)))
-	return {"title": item.clean + " emulators", "items": items, "width": SlidePanel.WIDE_RATIO}
+	var menu = {"title": item.clean + " emulators", "items": items, "width": SlidePanel.WIDE_RATIO}
+	if groups[1].is_empty():
+		return menu
+	var heading = items.size()
+	items.append(option.new_option("Other launchers"))
+	for id in groups[1]:
+		items.append(_check(id, id in active, func(): toggle_emulator(id)))
+	menu["selectable"] = range(items.size()).filter(func(i): return i != heading)
+	return menu
 
 func toggle_emulator(id: String):
 	var active: Array = Global.get_system_settings_options(item.system).get("EMULATOR", []).duplicate()
@@ -235,14 +249,16 @@ func art_sources_menu() -> Dictionary:
 	var items = [option.with_callback("Scrape all games" if item.is_dir else "Scrape artwork", func():
 		var scraper = ArtScraper.new(panel, item)
 		panel.push_menu(scraper.backend_menu))]
-	for source in ART_SOURCES:
-		items.append(option.with_callback(source, func(): _watch_image(); AndroidInterface.look_for_art_web(item.clean, item.system, source)))
-	items.append(option.with_callback("Choose from files", func(): _watch_image(); AndroidInterface.choose_file()))
+	if Platform.has_web_art():
+		for source in ART_SOURCES:
+			items.append(option.with_callback(source, func(): _watch_image(); Platform.look_for_art_web(item.clean, item.system, source)))
+	if Platform.has_file_picker():
+		items.append(option.with_callback("Choose from files", func(): _watch_image(); Platform.choose_file()))
 	return {"title": "Find art", "items": items}
 
 func _watch_image():
-	if not AndroidInterface.got_image.is_connected(_on_image_chosen):
-		AndroidInterface.got_image.connect(_on_image_chosen, CONNECT_ONE_SHOT)
+	if not Platform.got_image.is_connected(_on_image_chosen):
+		Platform.got_image.connect(_on_image_chosen, CONNECT_ONE_SHOT)
 
 static func decode_image(bytes: PackedByteArray) -> Image:
 	var image = Image.new()
@@ -281,7 +297,7 @@ func confirm_image_menu() -> Dictionary:
 
 func paths_menu() -> Dictionary:
 	var items = [option.with_callback("Add a path", func():
-		AndroidInterface.choose_storage_directory(func(selection):
+		Platform.choose_storage_directory(func(selection):
 			var path = str(selection).replace(" ", "").replace(":", "/")
 			if DirAccess.open(path) == null:
 				Global.show_message("Unable to access " + path, true)
@@ -302,7 +318,15 @@ func paths_menu() -> Dictionary:
 					panel.back()),
 				option.with_callback("Cancel", func(): panel.back()),
 			], "selection": 2})))
-	return {"title": "Game paths", "items": items, "width": SlidePanel.WIDE_RATIO}
+	var found = Global.found_paths(item.system)
+	if found.is_empty():
+		return {"title": "Game paths", "items": items, "width": SlidePanel.WIDE_RATIO}
+	var heading = items.size()
+	items.append(option.new_option("Found automatically"))
+	for path in found:
+		items.append(option.new_option(path))
+	var selectable = range(items.size()).filter(func(i): return i != heading)
+	return {"title": "Game paths", "items": items, "width": SlidePanel.WIDE_RATIO, "selectable": selectable}
 
 func details_menu() -> Dictionary:
 	var path_heading = option.new_option("Path")

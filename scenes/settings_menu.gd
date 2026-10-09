@@ -1,15 +1,17 @@
 extends RefCounted
 
 const StorageSetup = preload("res://scenes/storage_setup.gd")
+const ArtScraper = preload("res://scenes/art_scraper.gd")
 
-const TEXT_SIZE_NAMES = ["Small", "Medium", "Large", "Extra large"]
-const TEXT_SIZE_FACTORS = [0.8, 1.0, 1.2, 1.45]
+const TEXT_SIZE_NAMES = ["Extra small", "Small", "Medium", "Large", "Extra large"]
+const TEXT_SIZE_FACTORS = [0.65, 0.8, 1.0, 1.2, 1.45]
 const COVER_SIZE_NAMES = ["Off", "Small", "Medium", "Large"]
+const COVER_STYLE_NAMES = ["Single", "Stacked", "Wheel", "Inline"]
+const LAUNCH_VIEW_NAMES = ["Cover + Info", "Cover", "Info", "None"]
 const ALIGNMENT_NAMES = ["Left", "Center", "Right"]
 const COVER_BORDER = Vector2(8, 8)
 const FONT_DIR = "res://launcher_configs/COMMON/fonts"
-const DEFAULT_FONT = "res://launcher_configs/COMMON/fonts/Rubik/Rubik-Medium.ttf"
-const FONT_WEIGHTS = ["Light", "Medium", "Bold"]
+const DEFAULT_FONT = "res://launcher_configs/COMMON/fonts/Rubik/Rubik.ttf"
 const SGDB_VALIDATE_URL = "https://www.steamgriddb.com/api/v2/search/autocomplete/test"
 const OFL_URL = "https://openfontlicense.org"
 
@@ -40,11 +42,8 @@ static func font_families() -> Array:
 	families.sort()
 	return families
 
-static func font_path(family: String, weight: String) -> String:
-	return FONT_DIR + "/" + family + "/" + family + "-" + weight + ".ttf"
-
-static func font_weights(family: String) -> Array:
-	return FONT_WEIGHTS.filter(func(w): return ResourceLoader.exists(font_path(family, w)))
+static func font_path(family: String) -> String:
+	return FONT_DIR + "/" + family + "/" + family + ".ttf"
 
 static func current_font_path() -> String:
 	var path = Settings.supported_font(Settings.get_setting(Settings.CFG_FONT))
@@ -63,24 +62,18 @@ func _apply_font(path: String):
 	panel.relayout()
 
 func font_menu() -> Dictionary:
-	var current_family = current_font_path().get_base_dir().get_file()
-	var items = []
-	for family in font_families():
-		var marker = "• " if family == current_family else ""
-		items.append(_with_font(option.with_callback(marker + family, func(): panel.push_menu(func(): return font_weight_menu(family))), font_path(family, "Medium")))
-	return {"title": "Font", "items": items}
-
-func font_weight_menu(family: String) -> Dictionary:
 	var current = current_font_path()
 	var items = []
-	for weight in font_weights(family):
-		var path = font_path(family, weight)
+	var selection = 0
+	for family in font_families():
+		var path = font_path(family)
+		if path == current:
+			selection = items.size()
 		var marker = "• " if path == current else ""
-		items.append(_with_font(option.with_callback(marker + weight, func():
+		items.append(_with_font(option.with_callback(marker + family, func():
 			_apply_font(path)
-			panel.back()
 			panel.back()), path))
-	return {"title": family, "items": items}
+	return {"title": "Font", "items": items, "selection": selection}
 
 func open(section: String = ""):
 	panel.corner_text = "v" + Global.VERSION
@@ -129,10 +122,10 @@ func storage_menu() -> Dictionary:
 	current.set_meta("value", str(Global.root_path))
 	return {"title": "Storage", "width": SlidePanel.WIDE_RATIO, "items": [
 		current,
-		option.with_callback("Use on-device storage", func(): AndroidInterface.create_internal_storage(_storage_chosen, _storage_failed)),
-		option.with_callback("Use removable storage", func(): AndroidInterface.create_external_storage(_storage_chosen, _storage_failed)),
-		option.with_callback("Choose a folder", func(): AndroidInterface.choose_storage_directory(_storage_chosen, _storage_failed)),
-		option.with_callback("Grant file permissions", func(): AndroidInterface.request_permissions()),
+		option.with_callback("Use on-device storage", func(): Platform.create_internal_storage(_storage_chosen, _storage_failed)),
+		option.with_callback("Use removable storage", func(): Platform.create_external_storage(_storage_chosen, _storage_failed)),
+		option.with_callback("Choose a folder", func(): Platform.choose_storage_directory(_storage_chosen, _storage_failed)),
+		option.with_callback("Grant file permissions", func(): Platform.request_permissions()),
 	], "selection": 1}
 
 func _storage_chosen(selection):
@@ -168,7 +161,8 @@ func _color_row(label: String, key: String, other_key: String) -> option:
 
 func _value(label: String, value, step: Callable, reset: Callable) -> option:
 	var opt = with_value(option.with_callback(label, func(): step.call(1); _refresh()), value)
-	opt.callbacks[Actions.DIRECTION] = func(direction: int): step.call(direction); _refresh()
+	if not value is bool:
+		opt.callbacks[Actions.DIRECTION] = func(direction: int): step.call(direction); _refresh()
 	opt.callbacks[Actions.START] = func(): reset.call(); _refresh()
 	return opt
 
@@ -197,61 +191,63 @@ func _cycle_index(current: int, count: int, direction: int) -> int:
 	return posmod(current + direction, count)
 
 func main_menu() -> Dictionary:
-	return {"title": "Settings", "items": [
+	var items = []
+	if BootHook.supported():
+		items.append(launch_on_boot_row())
+	items.append_array([
 		option.with_callback("General", func(): panel.push_menu(general_menu)),
 		option.with_callback("Visuals", func(): panel.push_menu(visual_menu)),
+		option.with_callback("Audio", func(): panel.push_menu(audio_menu)),
 		option.with_callback("Controls", func(): panel.push_menu(controls_menu)),
 		option.with_callback("Collections", func(): panel.push_menu(collections_menu)),
 		option.with_callback("Scraper", func(): panel.push_menu(scraper_menu)),
 		option.with_callback("Launchers", func(): panel.push_menu(launchers_menu)),
 		option.with_callback("Credits", func(): panel.push_menu(credits_menu)),
-		option.with_callback("Quit", func(): panel.get_tree().quit()),
+	])
+	if "portmaster" in Platform.tags():
+		items.append_array([
+			_confirm("Reboot device?", "Reboot", func(): _power("reboot", "Rebooting...")),
+			_confirm("Shut down device?", "Shut down", func(): _power("poweroff", "Shutting down...")),
+		])
+	items.append(option.with_callback("Quit", func(): panel.get_tree().quit()))
+	return {"title": "Settings", "items": items}
+
+func _power(action: String, message: String):
+	panel.close()
+	Global.show_power_screen(message)
+	DevicePower.run(action)
+
+func launch_on_boot_row() -> option:
+	return with_value(option.with_callback("Launch on Boot", _info("Launch on Boot", BootHook.steps())), "On" if BootHook.enabled() else "Off")
+
+const VOLUME_STEP = 10
+
+static func stepped_volume(current: int, direction: int) -> int:
+	if direction > 0 and current >= 100:
+		return 0
+	return clampi(current + direction * VOLUME_STEP, 0, 100)
+
+func _volume_row(label: String, key: String, sample: String) -> option:
+	return _value(label, str(int(Settings.get_setting(key))) + "%", func(d):
+		Settings.store(key, stepped_volume(int(Settings.get_setting(key)), d))
+		Global.play_sound(sample), func():
+		Settings.store(key, Settings.DEFAULT_SETTINGS[key])
+		Global.play_sound(sample))
+
+func audio_menu() -> Dictionary:
+	return {"title": "Audio", "items": [
+		_volume_row("Master", Settings.CFG_VOLUME_MASTER, "accept"),
+		_volume_row("Scroll", Settings.CFG_VOLUME_SCROLL, "move"),
+		_volume_row("Select", Settings.CFG_VOLUME_SELECT, "accept"),
+		_volume_row("Back", Settings.CFG_VOLUME_BACK, "back"),
 	]}
 
 func visual_menu() -> Dictionary:
-	var default_scaler = Settings._compute_default_scaler()
-	var size_index = text_size_index(Settings.get_setting(Settings.CFG_SCALER), default_scaler)
-	var cover_index = Global.get_cycle_index(Settings.CFG_VISUAL_COVER_SIZE, Settings.COVER_SIZES) - 1
 	var align_index = Global.get_cycle_index(Settings.CFG_VISUAL_TITLE_ORIENTATION, Settings.TITLE_ORIENTATIONS) - 1
 	return {"title": "Visuals", "items": [
-		_value("Text size", TEXT_SIZE_NAMES[size_index], func(d):
-			Settings.store(Settings.CFG_SCALER, default_scaler * TEXT_SIZE_FACTORS[_cycle_index(size_index, TEXT_SIZE_NAMES.size(), d)])
-			Global.apply_visual_change(), func():
-			Settings.store(Settings.CFG_SCALER, default_scaler)
-			Global.apply_visual_change()),
-		_with_default(_with_font(with_value(option.with_callback("Font", func(): panel.push_menu(font_menu)), font_name(current_font_path())), current_font_path()), func(): _apply_font(DEFAULT_FONT)),
-		_value("Uppercase text", Settings.get_setting(Settings.CFG_CAPS_LOCK), func(_d): Global.caps_lock(), func():
-			if Settings.get_setting(Settings.CFG_CAPS_LOCK):
-				Global.caps_lock()),
-		_color_row("Background color", Settings.CFG_BG_COLOR, Settings.CFG_FG_COLOR),
-		_color_row("Text color", Settings.CFG_FG_COLOR, Settings.CFG_BG_COLOR),
-		with_value(_color_row("Bar color", Settings.CFG_BAR_COLOR, Settings.CFG_FG_COLOR), "Custom" if Settings.get_setting(Settings.CFG_BAR_COLOR) is Color else "Off"),
-		_value("Cover size", COVER_SIZE_NAMES[cover_index], func(d):
-			Settings.store(Settings.CFG_VISUAL_COVER_SIZE, Settings.COVER_SIZES[_cycle_index(cover_index, Settings.COVER_SIZES.size(), d)])
-			Global.apply_visual_change()
-			if not Global.cover_on_left():
-				panel.peek(), func():
-			Settings.store(Settings.CFG_VISUAL_COVER_SIZE, Settings.DEFAULT_SETTINGS[Settings.CFG_VISUAL_COVER_SIZE])
-			Global.apply_visual_change()),
-		_value("Cover position", "Left" if Settings.get_setting(Settings.CFG_COVER_SIDE) == "left" else "Right", func(_d):
-			Settings.store(Settings.CFG_COVER_SIDE, "right" if Settings.get_setting(Settings.CFG_COVER_SIDE) == "left" else "left")
-			Global.apply_visual_change()
-			panel.peek(), func():
-			Settings.store(Settings.CFG_COVER_SIDE, "right")
-			Global.apply_visual_change()),
-		_value("Nearby covers", Settings.get_setting(Settings.CFG_NEARBY_COVERS), func(_d):
-			Settings.store(Settings.CFG_NEARBY_COVERS, not Settings.get_setting(Settings.CFG_NEARBY_COVERS))
-			Global.apply_visual_change()
-			if not Global.cover_on_left():
-				panel.peek(), func():
-			Settings.store(Settings.CFG_NEARBY_COVERS, false)
-			Global.apply_visual_change()),
-		_value("Cover border", Settings.get_setting(Settings.CFG_VISUAL_BORDER) != Vector2.ZERO, func(_d):
-			Settings.store(Settings.CFG_VISUAL_BORDER, Vector2.ZERO if Settings.get_setting(Settings.CFG_VISUAL_BORDER) != Vector2.ZERO else COVER_BORDER)
-			Global.apply_visual_change(), func():
-			Settings.store(Settings.CFG_VISUAL_BORDER, Settings.DEFAULT_SETTINGS[Settings.CFG_VISUAL_BORDER])
-			Global.apply_visual_change()),
-		_toggle("System art", Settings.CFG_VISUAL_SYSTEM_ART),
+		option.with_callback("Text", func(): panel.push_menu(text_menu)),
+		option.with_callback("Color", func(): panel.push_menu(colors_menu)),
+		option.with_callback("Cover Art", func(): panel.push_menu(cover_menu)),
 		_value("Title alignment", ALIGNMENT_NAMES[align_index], func(d):
 			Settings.store(Settings.CFG_VISUAL_TITLE_ORIENTATION, Settings.TITLE_ORIENTATIONS[_cycle_index(align_index, ALIGNMENT_NAMES.size(), d)])
 			Global.apply_visual_change(), func():
@@ -261,12 +257,78 @@ func visual_menu() -> Dictionary:
 			Settings.store(Settings.CFG_SYSTEM_TITLE, Settings.DEFAULT_SETTINGS.get(Settings.CFG_SYSTEM_TITLE))
 			Global.refresh_home_title()),
 		_toggle("Button prompts", Settings.CFG_VISUAL_PROMPT_BAR),
+		_toggle("Effects", Settings.CFG_EFFECTS),
+		_value("Launch view", LAUNCH_VIEW_NAMES[Settings.LAUNCH_VIEWS.find(Settings.get_setting(Settings.CFG_LAUNCH_VIEW))], func(d):
+			var index = _cycle_index(Settings.LAUNCH_VIEWS.find(Settings.get_setting(Settings.CFG_LAUNCH_VIEW)), Settings.LAUNCH_VIEWS.size(), d)
+			Settings.store(Settings.CFG_LAUNCH_VIEW, Settings.LAUNCH_VIEWS[index]), func():
+			Settings.store(Settings.CFG_LAUNCH_VIEW, Settings.DEFAULT_SETTINGS[Settings.CFG_LAUNCH_VIEW])),
 		_confirm("Restore defaults?", "Restore", func():
 			Settings.reset_visual()
 			Global.font = ResourceLoader.load(current_font_path())
 			Global.refresh_fonts()
 			Global.refresh_home_title()
 			_refresh()),
+	]}
+
+func text_menu() -> Dictionary:
+	var default_scaler = Settings._compute_default_scaler()
+	var size_index = nearest_index(Settings.get_setting(Settings.CFG_TEXT_FACTOR), TEXT_SIZE_FACTORS) if Settings.follows_window() else text_size_index(Settings.get_setting(Settings.CFG_SCALER), default_scaler)
+	return {"title": "Text", "items": [
+		_value("Text size", TEXT_SIZE_NAMES[size_index], func(d):
+			var factor = TEXT_SIZE_FACTORS[_cycle_index(size_index, TEXT_SIZE_NAMES.size(), d)]
+			if Settings.follows_window():
+				Settings.store(Settings.CFG_TEXT_FACTOR, factor)
+			else:
+				Settings.store(Settings.CFG_SCALER, default_scaler * factor)
+			Global.apply_visual_change(), func():
+			Settings.store(Settings.CFG_TEXT_FACTOR, 1.0)
+			Settings.store(Settings.CFG_SCALER, default_scaler)
+			Global.apply_visual_change()),
+		_with_default(_with_font(with_value(option.with_callback("Font", func(): panel.push_menu(font_menu)), font_name(current_font_path())), current_font_path()), func(): _apply_font(DEFAULT_FONT)),
+		_value("Uppercase text", Settings.get_setting(Settings.CFG_CAPS_LOCK), func(_d): Global.caps_lock(), func():
+			if Settings.get_setting(Settings.CFG_CAPS_LOCK):
+				Global.caps_lock()),
+	]}
+
+func colors_menu() -> Dictionary:
+	return {"title": "Color", "items": [
+		_color_row("Background color", Settings.CFG_BG_COLOR, Settings.CFG_FG_COLOR),
+		_color_row("Text color", Settings.CFG_FG_COLOR, Settings.CFG_BG_COLOR),
+		with_value(_color_row("Bar color", Settings.CFG_BAR_COLOR, Settings.CFG_FG_COLOR), "Custom" if Settings.get_setting(Settings.CFG_BAR_COLOR) is Color else "Off"),
+		with_value(_color_row("Cover area", Settings.CFG_COVER_AREA_COLOR, Settings.CFG_FG_COLOR), "Custom" if Settings.get_setting(Settings.CFG_COVER_AREA_COLOR) is Color else "Off"),
+		_toggle("Row stripes", Settings.CFG_ROW_STRIPES),
+	]}
+
+func cover_menu() -> Dictionary:
+	var cover_index = Global.get_cycle_index(Settings.CFG_VISUAL_COVER_SIZE, Settings.COVER_SIZES) - 1
+	return {"title": "Cover Art", "items": [
+		_value("Cover size", COVER_SIZE_NAMES[cover_index], func(d):
+			Settings.store(Settings.CFG_VISUAL_COVER_SIZE, Settings.COVER_SIZES[_cycle_index(cover_index, Settings.COVER_SIZES.size(), d)])
+			Global.apply_visual_change()
+			if not Global.cover_on_left():
+				panel.peek(), func():
+			Settings.store(Settings.CFG_VISUAL_COVER_SIZE, Settings.DEFAULT_SETTINGS[Settings.CFG_VISUAL_COVER_SIZE])
+			Global.apply_visual_change()),
+		_value("Cover style", COVER_STYLE_NAMES[maxi(0, Settings.COVER_STYLES.find(Settings.get_setting(Settings.CFG_COVER_STYLE)))], func(d):
+			var index = _cycle_index(maxi(0, Settings.COVER_STYLES.find(Settings.get_setting(Settings.CFG_COVER_STYLE))), Settings.COVER_STYLES.size(), d)
+			Settings.store(Settings.CFG_COVER_STYLE, Settings.COVER_STYLES[index])
+			Global.apply_visual_change()
+			if not Global.cover_on_left():
+				panel.peek(), func():
+			Settings.store(Settings.CFG_COVER_STYLE, Settings.DEFAULT_SETTINGS[Settings.CFG_COVER_STYLE])
+			Global.apply_visual_change()),
+		_value("Cover position", "Left" if Settings.get_setting(Settings.CFG_COVER_SIDE) == "left" else "Right", func(_d):
+			Settings.store(Settings.CFG_COVER_SIDE, "right" if Settings.get_setting(Settings.CFG_COVER_SIDE) == "left" else "left")
+			Global.apply_visual_change()
+			panel.peek(), func():
+			Settings.store(Settings.CFG_COVER_SIDE, "right")
+			Global.apply_visual_change()),
+		_value("Cover border", Settings.get_setting(Settings.CFG_VISUAL_BORDER) != Vector2.ZERO, func(_d):
+			Settings.store(Settings.CFG_VISUAL_BORDER, Vector2.ZERO if Settings.get_setting(Settings.CFG_VISUAL_BORDER) != Vector2.ZERO else COVER_BORDER)
+			Global.apply_visual_change(), func():
+			Settings.store(Settings.CFG_VISUAL_BORDER, Settings.DEFAULT_SETTINGS[Settings.CFG_VISUAL_BORDER])
+			Global.apply_visual_change()),
+		_toggle("System art", Settings.CFG_VISUAL_SYSTEM_ART),
 	]}
 
 func general_menu() -> Dictionary:
@@ -292,12 +354,7 @@ func general_menu() -> Dictionary:
 
 func controls_menu() -> Dictionary:
 	return {"title": "Controls", "items": [
-		_value("Swap confirm button", Global.confirm_swapped, func(_d):
-			Global.swap_confirm_key()
-			Global.refresh_prompt_bar(), func():
-			if Global.confirm_swapped:
-				Global.swap_confirm_key()
-				Global.refresh_prompt_bar()),
+		_screen("Set confirm button", "controls", "confirm_set"),
 		_toggle("Vibration", Settings.CFG_VIBRATE),
 		_toggle("Touch controls", Settings.CFG_TOUCH_ENABLED),
 		_toggle("Invert touch scroll", Settings.CFG_TOUCH_INVERT_SCROLL),
@@ -358,7 +415,7 @@ func _apply_color():
 	panel.relayout()
 
 func _input(prompt: String, value: String, password: bool, on_text: Callable):
-	AndroidInterface.show_text_input(prompt, value, password, func(text: String):
+	panel.text_input(prompt, value, password, func(text: String):
 		on_text.call(text)
 		_refresh())
 
@@ -367,7 +424,7 @@ static func set_label(value: String) -> String:
 
 func scraper_menu() -> Dictionary:
 	var items = []
-	if Settings.get_setting(Settings.CFG_SCREENSCRAPER_URL) != "":
+	if ArtScraper.screenscraper_url() != "":
 		var user = Settings.get_setting(Settings.CFG_SS_USER)
 		items.append(with_value(option.with_callback("ScreenScraper user", func():
 			_input("ScreenScraper username", Settings.get_setting(Settings.CFG_SS_USER), false, func(text):
@@ -413,8 +470,15 @@ func launchers_menu() -> Dictionary:
 	return {"title": "Launchers", "items": [
 		option.with_callback("Built-in launchers", func(): panel.push_menu(built_in_launchers_menu)),
 		option.with_callback("Custom launchers", func(): panel.push_menu(custom_launchers_menu)),
-		_toggle("Exit RetroArch on focus loss", Settings.CFG_RETROARCH_QUIT_ON_LEAVE),
-	]}
+		null if Launcher.uses_commands() else _toggle("Exit RetroArch on focus loss", Settings.CFG_RETROARCH_QUIT_ON_LEAVE),
+		_retroarch_config_row() if OS.get_environment("RETROARCH_CONFIG") != "" else null,
+	].filter(func(item): return item != null)}
+
+func _retroarch_config_row() -> option:
+	var own = Settings.get_setting(Settings.CFG_RETROARCH_OWN_CONFIG)
+	return _value("RetroArch config", "Plain Launcher's" if own else "Handheld's", func(_d):
+		Settings.store(Settings.CFG_RETROARCH_OWN_CONFIG, not Settings.get_setting(Settings.CFG_RETROARCH_OWN_CONFIG)), func():
+		Settings.store(Settings.CFG_RETROARCH_OWN_CONFIG, false))
 
 static func launcher_names(built_in: bool) -> Array:
 	var names = Launcher.load_intents().keys().filter(func(n): return Launcher.is_bundled_intent(n) == built_in)
@@ -427,15 +491,72 @@ func built_in_launchers_menu() -> Dictionary:
 
 func custom_launchers_menu() -> Dictionary:
 	var items = [option.with_callback("Add new launcher", func():
-		AndroidInterface.show_text_input("Launcher name (e.g. myemulator)", "", false, func(text: String):
+		panel.text_input("Launcher name (e.g. myemulator)", "", false, func(text: String):
 			if text == "":
 				return
 			var id = Launcher.unused_intent_id(text)
-			Launcher.save_custom_intent(id, {"action": "android.intent.action.VIEW", "componentPackage": "", "componentClass": "", "systems": []})
+			Launcher.save_custom_intent(id, new_launcher(id))
 			panel.push_menu(func(): return intent_menu(id))))]
+	var intents = Launcher.load_intents()
 	for name in launcher_names(false):
-		items.append(option.with_callback(name, func(): panel.push_menu(func(): return intent_menu(name))))
+		var row = option.with_callback(name, func(): panel.push_menu(func(): return intent_menu(name)))
+		items.append(with_value(row, program_status(intents[name])) if intents[name].has("command") and not Launcher.command_available(intents[name]) else row)
 	return {"title": "Custom launchers", "items": items, "width": SlidePanel.WIDE_RATIO}
+
+static func new_launcher(id: String) -> Dictionary:
+	if Launcher.uses_commands():
+		return {"command": [id, "{game}"], "systems": []}
+	return {"action": "android.intent.action.VIEW", "componentPackage": "", "componentClass": "", "systems": []}
+
+static func program_status(intent: Dictionary) -> String:
+	return "Found" if Launcher.command_available(intent) else "Not found"
+
+static func with_program(command: Array, path: String) -> Array:
+	var result = command.duplicate()
+	if result.is_empty():
+		return [path.replace("\\", "/"), "{game}"]
+	result[0] = path.replace("\\", "/")
+	return result
+
+static func split_command(text: String) -> Array:
+	var args = []
+	var current = ""
+	var quote = ""
+	var started = false
+	var i = 0
+	while i < text.length():
+		var c = text[i]
+		if c == "\\" and quote != "'" and i + 1 < text.length():
+			i += 1
+			current += text[i]
+			started = true
+		elif quote != "":
+			if c == quote:
+				quote = ""
+			else:
+				current += c
+		elif c == "'" or c == "\"":
+			quote = c
+			started = true
+		elif c == " " or c == "\t":
+			if started:
+				args.append(current)
+			current = ""
+			started = false
+		else:
+			current += c
+			started = true
+		i += 1
+	if started:
+		args.append(current)
+	return args
+
+static func join_command(args: Array) -> String:
+	return " ".join(args.map(func(arg):
+		arg = str(arg)
+		if arg != "" and not (" " in arg or "\t" in arg or "'" in arg or "\"" in arg or "\\" in arg):
+			return arg
+		return "\"" + arg.replace("\\", "\\\\").replace("\"", "\\\"") + "\""))
 
 static func split_list(text: String, upper: bool = false) -> Array:
 	return Array(text.split(",")).map(func(s): return s.strip_edges().to_upper() if upper else s.strip_edges()).filter(func(s): return s != "")
@@ -460,6 +581,21 @@ func intent_menu(name: String) -> Dictionary:
 	var flags = intent.get("flags", [])
 	var systems = intent.get("systems", [])
 	var extras = intent.get("extras", {})
+	var systems_row = edit.call("Systems", "Systems (comma-separated, e.g. GBA, GBC)", ", ".join(systems) if not systems.is_empty() else "None", ", ".join(systems), func(text):
+		intent["systems"] = split_list(text, true))
+	if intent.has("command"):
+		var command_items = [
+			edit.call("Command", "Command (use {game}, {core}, {env:NAME})", join_command(intent.command), join_command(intent.command), func(text):
+				intent["command"] = split_command(text)),
+			null if built_in else with_value(option.new_option("Program"), program_status(intent)),
+			null if built_in or not Platform.has_native_dialogs() else option.with_callback("Browse for program", func():
+				Platform.choose_program(func(path: String):
+					intent["command"] = with_program(intent.command, path)
+					save.call()
+					_refresh())),
+			systems_row,
+		].filter(func(item): return item != null)
+		return _launcher_actions(name, built_in, command_items)
 	var items = [
 		field.call("Action", "action", "Action"),
 		field.call("Package", "componentPackage", "Package"),
@@ -471,8 +607,7 @@ func intent_menu(name: String) -> Dictionary:
 				intent.erase("flags")
 			else:
 				intent["flags"] = split_list(text)),
-		edit.call("Systems", "Systems (comma-separated, e.g. GBA, GBC)", ", ".join(systems) if not systems.is_empty() else "None", ", ".join(systems), func(text):
-			intent["systems"] = split_list(text, true)),
+		systems_row,
 	].filter(func(item): return item != null)
 	for key in extras:
 		items.append(edit.call(key, key + " (empty to remove)", str(extras[key]), str(extras[key]), func(text):
@@ -480,6 +615,19 @@ func intent_menu(name: String) -> Dictionary:
 				extras.erase(key)
 			else:
 				extras[key] = text))
+	if not built_in:
+		items.append(option.with_callback("Add extra", func():
+			panel.text_input("Extra key name", "", false, func(key: String):
+				if key == "":
+					return
+				_input("Value for " + key + " (use {game}, {core}, etc.)", "", false, func(text):
+					if text != "":
+						extras[key] = text
+						intent["extras"] = extras
+						save.call()))))
+	return _launcher_actions(name, built_in, items)
+
+func _launcher_actions(name: String, built_in: bool, items: Array) -> Dictionary:
 	if built_in:
 		for item in items:
 			item.callbacks.clear()
@@ -488,44 +636,44 @@ func intent_menu(name: String) -> Dictionary:
 			panel.back()
 			panel.push_menu(func(): return intent_menu(copy))))
 	else:
-		items.append(option.with_callback("Add extra", func():
-			AndroidInterface.show_text_input("Extra key name", "", false, func(key: String):
-				if key == "":
-					return
-				_input("Value for " + key + " (use {game}, {core}, etc.)", "", false, func(text):
-					if text != "":
-						extras[key] = text
-						intent["extras"] = extras
-						save.call()))))
 		items.append(_confirm("Delete launcher?", "Delete", func():
 			Launcher.remove_custom_intent(name)
 			panel.back()))
 	return {"title": name + (" (built-in)" if built_in else ""), "items": items, "width": SlidePanel.WIDE_RATIO}
 
 func _link(text: String) -> option:
-	return option.with_callback(text, func(): AndroidInterface.launch_intent(JSON.stringify({"action": "android.intent.action.VIEW", "data": text})))
+	return option.with_callback(text, func(): Platform.open_url(text))
 
 func _info(title: String, lines: Array) -> Callable:
 	return func(): panel.push_menu(func(): return {"title": title, "items": lines.map(func(l): return _link(l) if l.begins_with("https") else option.new_option(l)), "width": SlidePanel.WIDE_RATIO})
 
 static func font_credit_lines(family: String) -> Array:
 	var lines = []
-	var link = RegEx.create_from_string("^(.*?)\\s*\\((https?://[^)]+)\\)$")
-	for line in FileAccess.get_file_as_string(FONT_DIR + "/" + family + "/OFL.txt").split("\n"):
-		if line.strip_edges() == "":
+	var link = RegEx.create_from_string("^(.*?)\\s*\\((https?://[^)]+)\\)(.*)$")
+	for raw in FileAccess.get_file_as_string(FONT_DIR + "/" + family + "/OFL.txt").split("\n"):
+		var line = raw.strip_edges()
+		if line == "":
 			break
 		var found = link.search(line)
 		if found != null:
-			lines.append_array([found.get_string(1), found.get_string(2)])
+			lines.append_array([found.get_string(1) + found.get_string(3), found.get_string(2)])
 		else:
 			lines.append(line)
 	lines.append_array(["SIL Open Font License 1.1", OFL_URL])
 	return lines
 
+const SUPPORT_LINES = [
+	"If you enjoy Plain Launcher, buy me a Kofi!",
+	"https://ko-fi.com/yossariano",
+	"or better yet, check out my steam game",
+	"Bleu Bayou",
+	"https://store.steampowered.com/app/3806790/Bleu_Bayou/",
+]
+
 func credits_menu() -> Dictionary:
-	return {"title": "Credits", "items": [
+	return {"title": "Credits", "width": SlidePanel.WIDE_RATIO, "items": SUPPORT_LINES.map(func(l): return _link(l) if l.begins_with("https") else option.new_option(l)) + [
 		option.with_callback("Development", _info("Development", ["Created with Godot 4", "https://godotengine.org/", "by Yossarian", "https://ko-fi.com/yossariano"])),
-		option.with_callback("Fonts", func(): panel.push_menu(func(): return {"title": "Fonts", "items": font_families().map(func(f): return _with_font(option.with_callback(f, _info(f, font_credit_lines(f))), font_path(f, "Medium")))})),
+		option.with_callback("Fonts", func(): panel.push_menu(func(): return {"title": "Fonts", "items": font_families().map(func(f): return _with_font(option.with_callback(f, _info(f, font_credit_lines(f))), font_path(f)))})),
 		option.with_callback("System images", _info("System images", ["All system photos by Evan Amos", "https://commons.wikimedia.org/wiki/User:Evan-Amos"])),
 		option.with_callback("Color palette", _info("Color palette", ["'Duel' palette created by Arilyn", "https://lospec.com/palette-list/duel"])),
 	]}

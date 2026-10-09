@@ -10,7 +10,7 @@ if [ ! -f .godot/global_script_class_cache.cfg ] || [ -n "$(find scenes tests -n
 	"$GODOT" --headless --path . --import >/dev/null 2>&1
 fi
 
-XDG_DATA_HOME="$tmp/data" "$GODOT" --headless --path . -s tests/test_runner.gd 2>&1 | tee "$tmp/out.log"
+XDG_DATA_HOME="$tmp/data" PLAIN_LAUNCHER_COMMANDS=0 "$GODOT" --headless --path . -s tests/test_runner.gd 2>&1 | tee "$tmp/out.log"
 status=${PIPESTATUS[0]}
 
 if ! cmp -s project.godot "$tmp/project.godot"; then

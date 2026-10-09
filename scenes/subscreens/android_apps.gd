@@ -28,21 +28,25 @@ func clean_options():
 	Global.highlight_selection()
 
 func populate_content(msg_override=null):
-	app_list = AndroidInterface.get_app_list()
+	app_list = Platform.get_app_list()
 	Global.migrate_android_art(app_list)
 	var options = app_list.keys()
 	options.sort_custom(func(a, b): return a.to_lower() < b.to_lower())
 	Global.clear_visible("ANDROID", options)
 	clean_options()
 	Global.set_up_slots()
+	Global.show_options(Global.scroll_offset)
+	Global.highlight_selection()
 	Global.refresh_art()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
+	if Global.launching:
+		return
 	if Global.confirm_pressed():
 		Global.store_position()
 		var selected = Global.get_selected()
-		Launcher.launch_entry(app_list.get(selected.filename, ""), "ANDROID", selected.clean)
+		Global.launch_with_effect(func(): Launcher.launch_entry(app_list.get(selected.filename, ""), "ANDROID", selected.clean), Global.shown_title(selected), "Android app")
 	if Global.back_pressed():
 		Navigator.go_to_main()
 	if Input.is_action_just_pressed("start"):

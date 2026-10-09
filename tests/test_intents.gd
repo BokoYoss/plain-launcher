@@ -117,7 +117,7 @@ func test_intent_ids_are_file_safe():
 
 func test_systems_field_not_sent_to_android():
 	var plugin = FakePlugin.new()
-	AndroidInterface._android_plugin = plugin
+	Platform._android_plugin = plugin
 	Launcher.save_custom_intent("newemu", {"componentPackage": "com.new", "componentClass": "A", "systems": ["GBA"]})
 	Launcher.launch_with_settings({"EMULATOR": "newemu"}, root + "/game.gba")
 	var sent = JSON.parse_string(plugin.calls_to("launchIntent").back())

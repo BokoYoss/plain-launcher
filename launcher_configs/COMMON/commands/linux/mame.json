@@ -1,0 +1,4 @@
+{
+	"command": ["flatpak", "run", "--filesystem=/run/media", "--filesystem={game_dir}", "org.mamedev.MAME", "-rompath", "{game_dir}", "{basename}"],
+	"systems": ["ARCADE"]
+}

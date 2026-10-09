@@ -105,20 +105,13 @@ func _draw():
 		var center: Vector2 = points[action] + Vector2(0, radius() * PRESSED_DROP if held else 0.0)
 		var face = Color(fg, PRESSED_ALPHA if held else FACE_ALPHA)
 		if action == "start" or action == "options":
-			draw_colored_polygon(capsule(center, r * 0.6, r * 0.21, PILL_TILT), face)
+			var pill = PromptBar.capsule(center, r * 0.6, r * 0.21, PILL_TILT)
+			draw_colored_polygon(pill, face)
+			draw_polyline(pill + PackedVector2Array([pill[0]]), face, 1.0, true)
 			continue
-		draw_circle(center, r, face)
-		var letter = PromptBar.glyph_for(action, Global.confirm_swapped)
+		draw_circle(center, r, face, true, -1.0, true)
+		var letter = PromptBar.glyph_for(action, Global.confirm_swapped, false, Global.xbox_labels())
 		var size = int(r * 0.9)
 		var letter_width = font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 		draw_string(font, center + Vector2(-letter_width / 2.0, size * 0.36), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, size, bg)
 
-static func capsule(center: Vector2, half_length: float, round_radius: float, tilt: float) -> PackedVector2Array:
-	var points = PackedVector2Array()
-	var steps = 12
-	for end in [1, -1]:
-		var cap = Vector2(half_length * end, 0)
-		for i in range(steps + 1):
-			var angle = -PI / 2.0 + PI * i / steps + (0.0 if end == 1 else PI)
-			points.append(center + (cap + Vector2(cos(angle), sin(angle)) * round_radius).rotated(tilt))
-	return points

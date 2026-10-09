@@ -1,0 +1,3 @@
+/Sega Dreamcast/box
+/Sega Atomiswave Naomi/box
+/dreamcast/covers

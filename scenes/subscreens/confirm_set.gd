@@ -1,20 +1,44 @@
 extends Screen
 
-var SKIP_CONFIG = "CONFIRM_SET"
+var prompt: PressGlyph = null
+var done = false
 
 func _ready():
-	if Settings.get_setting(SKIP_CONFIG):
+	if not changing() and not Global.needs_confirm_button(Settings.get_setting(Settings.CFG_CONFIRM_SET), Input.get_connected_joypads().size()):
 		Navigator.push("file_browser")
 		return
-	Global.clear_visible("PRESS CONFIRM BUTTON", ["OK"])
-	Global.show_message("Confirm button can be changed later in settings", true)
+	Global.clear_visible("", [])
+	Global.set_prompts([])
+	prompt = PressGlyph.new()
+	prompt.z_index = 4005
+	add_child(prompt)
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
+func changing() -> bool:
+	return Global.root_path != ""
+
+func _process(_delta):
+	if done:
+		return
 	if Global.confirm_pressed():
-		Settings.store(SKIP_CONFIG, true)
-		Navigator.push("file_browser")
-	if Global.back_pressed():
-		Settings.store(SKIP_CONFIG, true)
+		_done(false)
+	elif Global.back_pressed():
+		_done(true)
+
+func _done(swap: bool):
+	done = true
+	if swap:
 		Global.swap_confirm_key()
+	Settings.store(Settings.CFG_CONFIRM_SET, true)
+	Global.vibrate(30)
+	if prompt != null and Global.effects_on():
+		prompt.press()
+		await get_tree().create_timer(PressGlyph.PRESS_SECONDS).timeout
+	Global.block_confirm()
+	if prompt != null:
+		prompt.queue_free()
+		prompt = null
+	Global.refresh_prompt_bar()
+	if changing():
+		Navigator.pop()
+	else:
 		Navigator.push("file_browser")

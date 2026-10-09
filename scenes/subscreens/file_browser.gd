@@ -10,10 +10,7 @@ var start_time = null
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	if OS.get_name() == "Android":
-		storage_select()
-	else:
-		populate_files("/", true)
+	storage_select()
 	start_time = Time.get_ticks_msec()
 
 func request_permissions():
@@ -51,7 +48,13 @@ func set_up_root():
 	return true
 
 func storage_select(title_override=null):
-	Global.clear_visible("Select primary storage", ["Grant file permissions", "Use on-device storage", "Use removable storage", "Open storage selector"])
+	if OS.get_name() == "Android":
+		Global.clear_visible("Select primary storage", ["Grant file permissions", "Use on-device storage", "Use removable storage", "Open storage selector"])
+	else:
+		var options = ["Use home folder (" + Platform.home_dir().path_join("PlainLauncher") + ")"]
+		if Platform.has_native_dialogs():
+			options.append("Open storage selector")
+		Global.clear_visible("Select primary storage", options)
 	if (title_override != null):
 		Global.title.text = title_override
 	Global.show_message("")
@@ -66,7 +69,7 @@ func _process(delta):
 			if Global.get_selected().clean.to_lower() == "no":
 				storage_select()
 			elif Global.get_selected().clean.to_lower() == "grant file permissions":
-				AndroidInterface.request_permissions()
+				Platform.request_permissions()
 				storage_select()
 			elif Global.get_selected().clean.to_lower() == "yes":
 				if current_dir == null:
@@ -80,13 +83,13 @@ func _process(delta):
 			elif Global.get_selected().clean.to_lower() == "ok":
 				Navigator.go_to_main()
 			elif "selector" in Global.get_selected().clean.to_lower():
-				AndroidInterface.choose_storage_directory(get_storage_selection, on_storage_config_failure)
-			elif "on-device" in Global.get_selected().clean.to_lower():
+				Platform.choose_storage_directory(get_storage_selection, on_storage_config_failure)
+			elif "on-device" in Global.get_selected().clean.to_lower() or "home folder" in Global.get_selected().clean.to_lower():
 				Global.clear_visible("Configuring...")
-				AndroidInterface.create_internal_storage(get_storage_selection, on_storage_config_failure)
+				Platform.create_internal_storage(get_storage_selection, on_storage_config_failure)
 			elif "removable" in Global.get_selected().clean.to_lower():
 				Global.clear_visible("Configuring...")
-				AndroidInterface.create_external_storage(get_storage_selection, on_storage_config_failure)
+				Platform.create_external_storage(get_storage_selection, on_storage_config_failure)
 			return
 		Global.store_position()
 		var selected_dir = Global.get_selected().clean

@@ -1,0 +1,8 @@
+{
+	"command": ["C:/mame/mame.exe", "-rompath", "{game_dir}", "{basename}"],
+	"programs": [
+		"C:/Program Files/MAME/mame.exe",
+		"{env:USERPROFILE}/scoop/apps/mame/current/mame.exe"
+	],
+	"systems": ["ARCADE"]
+}

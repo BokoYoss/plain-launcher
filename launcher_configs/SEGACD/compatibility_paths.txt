@@ -1,3 +1,4 @@
 /segacd
 /ROMs/megacd
 /ROMs/segacd
+/Sega CD

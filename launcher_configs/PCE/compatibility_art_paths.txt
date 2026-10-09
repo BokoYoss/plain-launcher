@@ -1,0 +1,3 @@
+/NEC PC Engine/box
+/NEC PC Engine CD/box
+/pcengine/covers

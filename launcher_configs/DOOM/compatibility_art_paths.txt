@@ -1,0 +1,2 @@
+/Doom/box
+/doom/covers

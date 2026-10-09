@@ -1,5 +1,7 @@
 extends "res://tests/test_case.gd"
 
+const SettingsMenu = preload("res://scenes/settings_menu.gd")
+
 var view: ListView
 
 func before_each():
@@ -296,6 +298,209 @@ func test_letter_groups_and_band_mapping():
 	assert_eq(scroller.letter_index_at(499.0, 100.0, 500.0, 4), 3, "bottom of the band is the last letter")
 	assert_eq(scroller.letter_index_at(250.0, 100.0, 500.0, 4), 1, "middle maps proportionally")
 
+func test_cover_slides_only_enough_to_clear_the_popup():
+	var scroller = load("res://scenes/letter_scroller.gd")
+	assert_eq(scroller.clearance(1500.0, 1600.0, 10.0), 0.0, "small cover stays put")
+	assert_eq(scroller.clearance(1700.0, 1600.0, 10.0), 110.0, "big cover moves just past the popup")
+	assert_eq(scroller.clearance(1595.0, 1600.0, 10.0), 5.0, "near miss only nudges")
+
+func test_press_pivots_at_the_start_of_the_text():
+	assert_eq(Global.text_start(200.0, 800.0, HORIZONTAL_ALIGNMENT_LEFT), 0.0, "left text from its left edge")
+	assert_eq(Global.text_start(200.0, 800.0, HORIZONTAL_ALIGNMENT_CENTER), 300.0, "centered text from where it begins")
+	assert_eq(Global.text_start(200.0, 800.0, HORIZONTAL_ALIGNMENT_RIGHT), 600.0, "right text from where it begins")
+	assert_eq(Global.text_start(1000.0, 800.0, HORIZONTAL_ALIGNMENT_RIGHT), 0.0, "cut-off text from the slot edge")
+
+func test_lifted_text_lands_centered():
+	assert_eq(Global.centered_left(200.0, 1000.0), 400.0, "text centered on screen")
+	assert_eq(Global.centered_left(1000.0, 1000.0), 0.0, "full-width text starts at the edge")
+
+func test_launch_view_names_the_retroarch_core():
+	assert_eq(Global.launcher_label("retroarch", "gambatte"), "retroarch (gambatte)", "core after RetroArch")
+	assert_eq(Global.launcher_label("retroarch64", "mgba"), "retroarch64 (mgba)", "any RetroArch build")
+	assert_eq(Global.launcher_label("duckstation", "pcsx_rearmed"), "duckstation", "other launchers unchanged")
+	assert_eq(Global.launcher_label("retroarch", null), "retroarch", "no core set")
+	assert_eq(Global.launcher_label("retroarch", "NULL"), "retroarch", "placeholder core ignored")
+
+func test_scrolling_waits_for_the_cover():
+	assert_false(Global.art_wait_over("/a.png", false, 100), "waits while the cover loads")
+	assert_true(Global.art_wait_over("/a.png", true, 100), "moves once it is loaded")
+	assert_true(Global.art_wait_over("", false, 0), "no cover to wait for")
+	assert_true(Global.art_wait_over("/a.png", false, Global.ART_WAIT_MAX_MS), "gives up on a slow cover")
+
+func test_list_locked_while_an_effect_plays():
+	var was = Global.launching
+	Global.launching = true
+	var locked = Global.cursor_locked()
+	var special = Global.special_allowed()
+	Global.launching = was
+	assert_true(locked, "no scrolling during the open or launch animation")
+	assert_false(special, "no options or letter jumps either")
+
+func test_inline_covers():
+	assert_eq(SettingsMenu.COVER_SIZE_NAMES, ["Off", "Small", "Medium", "Large"], "sizes no longer include Inline")
+	assert_eq(SettingsMenu.COVER_STYLE_NAMES.size(), Settings.COVER_STYLES.size(), "a name per style")
+	var covers = load("res://scenes/inline_covers.gd")
+	assert_true(covers.fit_rect(Vector2(100, 200), Rect2(0, 0, 60, 60)).is_equal_approx(Rect2(15, 0, 30, 60)), "tall cover centered in its box")
+	assert_true(covers.fit_rect(Vector2(200, 100), Rect2(10, 10, 60, 60)).is_equal_approx(Rect2(10, 25, 60, 30)), "wide cover centered in its box")
+	assert_eq(Global.inline_row_step(20.0, 100.0), 100.0 * (1.0 + Global.INLINE_ROW_GAP), "rows grow to fit big covers")
+	assert_eq(Global.inline_row_step(200.0, 100.0), 200.0, "big text keeps its own spacing")
+	var saved_style = Settings._data.get(Settings.CFG_COVER_STYLE)
+	var saved_size = Settings._data.get(Settings.CFG_VISUAL_COVER_SIZE)
+	Settings._data[Settings.CFG_COVER_STYLE] = "inline"
+	Settings._data[Settings.CFG_VISUAL_COVER_SIZE] = Settings.COVER_SIZES[1]
+	var inline_on = Global.inline_covers()
+	var big_cover = Global.cover_size()
+	Settings._data[Settings.CFG_VISUAL_COVER_SIZE] = Vector2.ZERO
+	var off_inline = Global.inline_covers()
+	for pair in [[Settings.CFG_COVER_STYLE, saved_style], [Settings.CFG_VISUAL_COVER_SIZE, saved_size]]:
+		if pair[1] == null:
+			Settings._data.erase(pair[0])
+		else:
+			Settings._data[pair[0]] = pair[1]
+	assert_true(inline_on, "Inline style on")
+	assert_eq(big_cover, Vector2.ZERO, "no side cover in Inline")
+	assert_true(Global.inline_box_for(720.0, Settings.COVER_SIZES[3]).y > Global.inline_box_for(720.0, Settings.COVER_SIZES[1]).y, "cover size sets the inline size")
+	assert_eq(Global.inline_box_for(1000.0, Settings.COVER_SIZES[2]), Vector2(135.0, 180.0), "Medium is 18% of the screen height, in a portrait box")
+	assert_false(off_inline, "Off hides inline covers too")
+
+func test_inline_rows_make_room_only_for_art():
+	assert_eq(Global.inline_slot_frame(10.0, 1000.0, 100.0, true, true), Vector2(110.0, 900.0), "left covers push the title right")
+	assert_eq(Global.inline_slot_frame(10.0, 1000.0, 100.0, false, true), Vector2(10.0, 900.0), "right covers shorten the title")
+	assert_eq(Global.inline_slot_frame(10.0, 1000.0, 100.0, true, false), Vector2(110.0, 900.0), "no art on the left, title stays lined up")
+	assert_eq(Global.inline_slot_frame(10.0, 1000.0, 100.0, false, false), Vector2(10.0, 1000.0), "no art on the right, title runs full width")
+
+func test_inline_titles_clear_the_cover_area():
+	var width = 1280.0
+	var box = Global.inline_box().x
+	var reserve = Global.inline_reserve()
+	var left_area = Global.cover_area_span(width, Global.left_bound, box, 0.0, true, true)
+	var left_frame = Global.inline_slot_frame(Global.left_bound, width - Global.left_bound * 2.0, reserve, true, true)
+	assert_true(left_frame.x >= left_area.y, "left covers keep titles out of the cover area")
+	var right_area = Global.cover_area_span(width, Global.left_bound, box, 0.0, false, true)
+	var right_frame = Global.inline_slot_frame(Global.left_bound, width - Global.left_bound * 2.0, reserve, false, true)
+	assert_true(right_frame.x + right_frame.y <= right_area.x, "right covers cut titles before the cover area")
+
+func test_cover_style_migration():
+	var inline = Settings.migrated_cover_style({Settings.CFG_VISUAL_COVER_SIZE: Settings.INLINE_COVER})
+	assert_eq(inline[Settings.CFG_COVER_STYLE], "inline", "old Inline size becomes the Inline style")
+	assert_eq(inline[Settings.CFG_VISUAL_COVER_SIZE], Settings.COVER_SIZES[2], "at Medium size")
+	var nearby = Settings.migrated_cover_style({Settings.CFG_NEARBY_COVERS: true})
+	assert_eq(nearby[Settings.CFG_COVER_STYLE], "stacked", "Nearby covers becomes Stacked")
+	assert_false(nearby.has(Settings.CFG_NEARBY_COVERS), "old key dropped")
+	var plain = {Settings.CFG_VISUAL_COVER_SIZE: Settings.COVER_SIZES[1]}
+	assert_eq(Settings.migrated_cover_style(plain), plain, "nothing to migrate")
+	var chosen = Settings.migrated_cover_style({Settings.CFG_COVER_STYLE: "wheel", Settings.CFG_NEARBY_COVERS: true})
+	assert_eq(chosen[Settings.CFG_COVER_STYLE], "wheel", "a chosen style is kept")
+
+func test_wheel_curves_away_from_the_list():
+	var center = Global.wheel_place(0.0, 400.0, 20.0, 1.0)
+	assert_eq(center.offset, Vector2.ZERO, "selected cover at home")
+	assert_eq(center.scale, 1.0, "full size")
+	var below = Global.wheel_place(1.0, 400.0, 20.0, 1.0)
+	var above = Global.wheel_place(-1.0, 400.0, 20.0, 1.0)
+	assert_true(below.offset.y > 0.0 and above.offset.y < 0.0, "neighbors above and below")
+	assert_true(below.offset.x > 0.0 and is_equal_approx(below.offset.x, above.offset.x), "both bend right, away from a left list")
+	assert_true(is_equal_approx(below.offset.y, 400.0 * (0.5 + Global.NEARBY_SCALE * 0.5) + 20.0), "first neighbor clears the main cover")
+	var far = Global.wheel_place(2.0, 400.0, 20.0, 1.0)
+	assert_true(far.offset.x > below.offset.x and far.scale < below.scale and far.alpha < below.alpha, "further covers curve more, shrink, and fade")
+	assert_true(Global.wheel_place(1.0, 400.0, 20.0, -1.0).offset.x < 0.0, "left covers bend left")
+	var halfway = Global.wheel_place(0.5, 400.0, 20.0, 1.0)
+	assert_true(halfway.scale < 1.0 and halfway.scale > below.scale, "sliding covers resize smoothly")
+
+func test_hiding_keeps_a_spot_in_the_list():
+	assert_eq(Global.kept_position(4, 2, 10, 5), Vector2i(4, 2), "next item slides into the hidden one's place")
+	assert_eq(Global.kept_position(9, 5, 9, 5), Vector2i(8, 4), "hiding the last item selects the new last one")
+	assert_eq(Global.kept_position(0, 0, 0, 5), Vector2i(0, 0), "empty list stays at the top")
+	assert_eq(Global.kept_position(3, 3, 4, 5), Vector2i(3, 0), "short list scrolls back to the top")
+
+func test_closing_a_panel_does_not_confirm_underneath():
+	assert_true(Global.confirm_blocked(100, 102), "same frame as the close")
+	assert_true(Global.confirm_blocked(102, 102), "still settling")
+	assert_false(Global.confirm_blocked(103, 102), "back to normal afterwards")
+	var saved = Global.waiting_for_confirm_release
+	Global.block_confirm()
+	var pressed = Global.confirm_pressed()
+	Global.waiting_for_confirm_release = saved
+	Global._confirm_blocked_until = -1
+	assert_false(pressed, "no confirm right after a panel closes")
+
+func test_refresh_shake_settles_where_it_started():
+	var offsets = Global.shake_offsets(10.0)
+	assert_eq(offsets.back(), 0.0, "ends back in place")
+	assert_true(offsets.any(func(o): return o > 0.0) and offsets.any(func(o): return o < 0.0), "goes both ways")
+	assert_true(absf(offsets[0]) > absf(offsets[-3]), "dies down")
+
+func test_systems_screen_refreshes_on_x():
+	var systems = load("res://scenes/subscreens/system_browser.gd")
+	assert_true(["favorite", "Refresh"] in systems.PROMPTS, "X refreshes on the Systems screen")
+	var buttons = load("res://scenes/touch_buttons.gd")
+	assert_true(buttons.offers_x(systems.PROMPTS), "touch X shown there too")
+
+func test_holding_delete_keeps_deleting():
+	var panel = SlidePanel.new()
+	var deleted = [0]
+	var held = [true]
+	panel._menu = {"repeat_held": func(): return held[0], "on_repeat": func(): deleted[0] += 1}
+	panel._update_repeat(1000)
+	panel._update_repeat(1000 + SlidePanel.HOLD_DELAY_MS - 1)
+	assert_eq(deleted[0], 0, "a quick press doesn't repeat")
+	panel._update_repeat(1000 + SlidePanel.HOLD_DELAY_MS)
+	panel._update_repeat(1000 + SlidePanel.HOLD_DELAY_MS + SlidePanel.HOLD_REPEAT_MS)
+	panel._update_repeat(1000 + SlidePanel.HOLD_DELAY_MS + SlidePanel.HOLD_REPEAT_MS * 2)
+	assert_eq(deleted[0], 3, "keeps deleting while held")
+	assert_true(panel._repeated, "release won't delete one more")
+	held[0] = false
+	panel._update_repeat(2000)
+	assert_false(panel._repeated, "stops when let go")
+	panel.free()
+
+func test_keyboard_knows_the_delete_key():
+	var keyboard = TextKeyboard.new()
+	keyboard.index = keyboard.keys.find_custom(func(k): return k.type == "delete")
+	assert_true(keyboard.on_delete(), "Del key selected")
+	keyboard.index = 0
+	assert_false(keyboard.on_delete(), "a letter isn't")
+	keyboard.free()
+
+func test_dpad_locked_while_letters_peek():
+	var scroller = Global.letter_scroller
+	var made = scroller == null
+	if made:
+		scroller = load("res://scenes/letter_scroller.gd").new()
+		Global.letter_scroller = scroller
+	var was = [scroller.active, scroller.peeking, Global.disable_scroll, Global.launching]
+	Global.disable_scroll = false
+	Global.launching = false
+	scroller.active = true
+	scroller.peeking = true
+	var locked = Global.cursor_locked()
+	scroller.active = was[0]
+	scroller.peeking = was[1]
+	Global.disable_scroll = was[2]
+	Global.launching = was[3]
+	if made:
+		Global.letter_scroller = null
+		scroller.free()
+	assert_true(locked, "the d-pad doesn't move the list while L/R letter jumps are showing")
+
+func test_cover_stays_shifted_while_letters_scroll():
+	assert_eq(Global.letter_shifted_x(960.0, 1.0, 200.0), 760.0, "new cover lands where the scroller holds it")
+	assert_eq(Global.letter_shifted_x(960.0, 0.0, 200.0), 960.0, "normal spot once the scroller is gone")
+
+func test_peek_row_shows_any_visible_sliver():
+	assert_eq(Global.peek_rows_for(100.0, 3, 130.0, 460.0), 1, "next row's stripe starts at 425, so it peeks")
+	assert_eq(Global.peek_rows_for(100.0, 3, 130.0, 425.0), 0, "nothing of it would show")
+
+func test_peek_row_title_hidden_when_cut_off():
+	assert_true(Global.text_fits(600.0, 650.0), "title shows when it fits")
+	assert_false(Global.text_fits(700.0, 650.0), "hidden instead of overlapping the prompts")
+
+func test_peek_row_cover_is_cut_at_the_bottom():
+	var covers = load("res://scenes/inline_covers.gd")
+	assert_eq(covers.cropped_to(Rect2(0, 600, 50, 100), 650.0), 50.0, "half of the peeking cover shows")
+	assert_eq(covers.cropped_to(Rect2(0, 600, 50, 100), 800.0), 100.0, "whole cover when it fits")
+	assert_eq(covers.cropped_to(Rect2(0, 700, 50, 100), 650.0), 0.0, "nothing below the edge")
+
 func test_x_button_only_when_x_does_something():
 	var buttons = load("res://scenes/touch_buttons.gd")
 	assert_false(buttons.layout(1920.0, 1000.0, 50.0).has("favorite"), "no X by default")
@@ -310,3 +515,27 @@ func test_letter_jumps_wrap_around():
 	assert_eq(scroller.wrapped_group(starts, 0, -1), 2, "# back to Z")
 	assert_eq(scroller.wrapped_group(starts, 8, 1), 0, "Z forward to #")
 	assert_eq(scroller.wrapped_group(starts, 5, 1), 2, "middle of a group moves to the next one")
+
+func test_cut_off_rows_are_known():
+	view.size = Vector2(200, 60)
+	view.font_size = 10
+	view.row_height = 20
+	var short = option.new_option("Path")
+	var long_line = option.new_option("/storage/9A7C-056B/PlainLauncher/Games/GBA/A Really Long Game Name That Will Not Fit (USA, Europe).gba")
+	var long_value = option.new_option("Command")
+	long_value.set_meta("value", "retroarch -f -c /run/muos/storage/info/config/retroarch.cfg -L /mnt/mmc/MUOS/core/mgba_libretro.so {game}")
+	view.set_items([short, long_line, long_value])
+	assert_false(view.is_cut_off(0), "short row fits")
+	assert_true(view.is_cut_off(1), "long line is cut off")
+	assert_true(view.is_cut_off(2), "long value is cut off")
+
+func test_full_text_page_shows_the_whole_value():
+	var panel = SlidePanel.new()
+	var item = option.new_option("Command")
+	item.set_meta("value", "retroarch -L core.so game.gba")
+	panel.show_full_text_of(item)
+	var page = panel.menus.back().call()
+	assert_true(page.static, "read-only page")
+	assert_eq(page.title, "Command", "titled by the row")
+	assert_eq(page.items.map(func(o): return o.clean), ["retroarch -L core.so game.gba"], "whole value")
+	panel.free()

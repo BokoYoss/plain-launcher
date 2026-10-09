@@ -175,6 +175,14 @@ func _dir_has_files(path: String, extensions = null) -> bool:
 	dir.list_dir_end()
 	return found
 
+func found_paths(system_name: String) -> Array:
+	var own = [root_path + PATH_GAMES + "/" + system_name] + get_user_paths(system_name)
+	var found = []
+	for path in compat_paths(system_name):
+		if DirAccess.dir_exists_absolute(path) and path not in found and path not in own:
+			found.append(path)
+	return found
+
 func _get_all_system_paths(system_name: String) -> Array:
 	var paths = [root_path + PATH_GAMES + "/" + system_name]
 	var paths_file = root_path + PATH_CONFIG + system_name + "/paths.txt"
@@ -183,13 +191,7 @@ func _get_all_system_paths(system_name: String) -> Array:
 			path = path.strip_edges()
 			if path != "":
 				paths.append(path)
-	var compat_file = get_compat_paths_filepath(system_name)
-	if FileAccess.file_exists(compat_file) and OS.get_name() == "Android":
-		var external_path = AndroidInterface.get_external_storage_path()
-		if external_path != null:
-			for path in FileAccess.get_file_as_string(compat_file).split("\n"):
-				if path != null and path != "":
-					paths.append(external_path + path)
+	paths.append_array(compat_paths(system_name))
 	return paths
 
 func _system_has_games(system_name: String) -> bool:
@@ -205,6 +207,10 @@ func prewarm_dir_cache(systems: PackedStringArray):
 	var paths = []
 	for system in systems:
 		paths.append_array(_get_all_system_paths(system))
+	if sync_loading:
+		_prewarm_done = true
+		merge_dir_listings(read_dir_listings(paths))
+		return
 	_prewarm_task = WorkerThreadPool.add_task(_read_dirs.bind(paths))
 
 static func read_dir_listings(paths: Array) -> Dictionary:
@@ -256,6 +262,7 @@ const SettingsMenu = preload("res://scenes/settings_menu.gd")
 const OptionsMenu = preload("res://scenes/options_menu.gd")
 const FavoriteStarScript = preload("res://scenes/favorite_star.gd")
 const CoverHalo = preload("res://scenes/cover_halo.gd")
+const StorageSetup = preload("res://scenes/storage_setup.gd")
 const CLEAN_PATTERN = "\\s*\\(.+\\)\\s*|\\s*\\[.+\\]\\s*|T.Eng+\\$|\\.nkit"
 const COVER_FADE = 0.3
 var cover_halo = null
@@ -263,6 +270,10 @@ const TouchButtons = preload("res://scenes/touch_buttons.gd")
 var touch_buttons = null
 const LetterScroller = preload("res://scenes/letter_scroller.gd")
 var letter_scroller = null
+const RowStripes = preload("res://scenes/row_stripes.gd")
+var row_stripes = null
+const InlineCovers = preload("res://scenes/inline_covers.gd")
+var inline_layer = null
 var settings_panel = null
 var settings_menu = null
 var options_menu = null
@@ -301,11 +312,38 @@ static func bar_color_for(bar, background: Color) -> Color:
 func bar_color() -> Color:
 	return bar_color_for(Settings.get_setting(Settings.CFG_BAR_COLOR), Settings.get_setting(Settings.CFG_BG_COLOR))
 
+var cover_area: ColorRect = null
+
+static func cover_area_span(screen_width: float, left: float, box: float, gap: float, cover_left: bool, inline: bool) -> Vector2:
+	if inline:
+		return Vector2(0.0, left * 2.0 + box) if cover_left else Vector2(screen_width - left * 2.0 - box, screen_width)
+	if cover_left:
+		return Vector2(0.0, left + box + gap / 2.0)
+	return Vector2(screen_width - left - box - gap / 2.0, screen_width)
+
+func cover_area_color():
+	var color = Settings.get_setting(Settings.CFG_COVER_AREA_COLOR)
+	return color if color is Color else null
+
+func layout_cover_area():
+	if cover_area == null or title == null:
+		return
+	var color = cover_area_color()
+	cover_area.visible = color != null and (inline_covers() or (cover != null and not force_cover and art_enabled_here()))
+	if not cover_area.visible:
+		return
+	cover_area.color = color
+	var gap = scaled_text_height * 0.3
+	var box = inline_box().x if inline_covers() else window_width * cover_size().x
+	var span = cover_area_span(window_width, left_bound, box, gap, cover_on_left(), inline_covers())
+	cover_area.position = Vector2(span.x, 0.0)
+	cover_area.size = Vector2(span.y - span.x, window_height + title_offset)
+
 func layout_header():
 	if header_bar == null or title == null:
 		return
 	header_bar.color = bar_color()
-	header_bar.visible = Settings.get_setting(Settings.CFG_BAR_COLOR) is Color
+	header_bar.visible = true
 	header_bar.position = Vector2.ZERO
 	header_bar.size = Vector2(window_width, maxf(0.0, title.position.y + title.size.y))
 
@@ -320,6 +358,28 @@ func apply_visual_change():
 	refresh_prompt_bar()
 	layout_message()
 
+var peek_rows = 0
+const PEEK_MIN_PIXELS = 1.0
+
+static func peek_rows_for(first_middle: float, rows: int, step: float, bottom_edge: float) -> int:
+	return 1 if first_middle + (rows - 0.5) * step < bottom_edge - PEEK_MIN_PIXELS else 0
+
+static func text_fits(text_bottom: float, limit: float) -> bool:
+	return text_bottom <= limit
+
+func show_peek_text():
+	if peek_rows == 0 or visible_slots.is_empty():
+		return
+	var slot: Label = visible_slots.back()
+	var bottom = slot.global_position.y + slot_text_middle(slot) + slot.get_theme_font("font").get_height(slot.get_theme_font_size("font_size")) / 2.0
+	slot.visible = text_fits(bottom, list_bottom())
+
+func list_bottom() -> float:
+	return window_height - prompt_bar_height()
+
+func focus_rows() -> int:
+	return maxi(1, visible_slots.size() - peek_rows)
+
 func select_by_path(path: String, fallback_row: int, previous_offset: int = -1):
 	var index = option_list.find_custom(func(o): return o.absolute_path == path)
 	if index < 0:
@@ -327,29 +387,41 @@ func select_by_path(path: String, fallback_row: int, previous_offset: int = -1):
 	if option_list.is_empty():
 		return
 	option_selection = index
-	var offset = previous_offset if previous_offset >= 0 and index >= previous_offset and index < previous_offset + visible_slots.size() else index - visible_slots.size() / 2
-	scroll_offset = clampi(offset, 0, maxi(0, option_list.size() - visible_slots.size()))
+	var offset = previous_offset if previous_offset >= 0 and index >= previous_offset and index < previous_offset + focus_rows() else index - focus_rows() / 2
+	scroll_offset = clampi(offset, 0, maxi(0, option_list.size() - focus_rows()))
 	show_options(scroll_offset)
 	highlight_selection()
 	refresh_art()
 
-func select_by_filename(filename: String):
+func select_by_filename(filename: String) -> bool:
 	for i in range(option_list.size()):
 		if option_list[i].filename == filename:
 			option_selection = i
-			scroll_offset = clampi(i - visible_slots.size() / 2, 0, maxi(0, option_list.size() - visible_slots.size()))
+			scroll_offset = clampi(i - focus_rows() / 2, 0, maxi(0, option_list.size() - focus_rows()))
 			show_options(scroll_offset)
 			highlight_selection(i)
 			refresh_art()
-			return
+			return true
+	return false
+
+static func kept_position(selection: int, offset: int, count: int, rows: int) -> Vector2i:
+	var row = clampi(selection, 0, maxi(0, count - 1))
+	return Vector2i(row, clampi(offset, 0, maxi(0, count - rows)))
 
 func refresh_file_cache():
 	var selected = get_selected().filename if not option_list.is_empty() else ""
+	var previous = Vector2i(option_selection, scroll_offset)
 	clear_dir_cache()
 	var top = Navigator._stack.back() if not Navigator._stack.is_empty() else null
 	if top != null and top.node.has_method("populate_content"):
 		top.node.populate_content()
-		select_by_filename(selected)
+		if not select_by_filename(selected):
+			var kept = kept_position(previous.x, previous.y, option_list.size(), focus_rows())
+			option_selection = kept.x
+			scroll_offset = kept.y
+			show_options(scroll_offset)
+			highlight_selection()
+			refresh_art()
 
 func list_text_width() -> float:
 	return window_width - left_bound * 2.0
@@ -416,7 +488,7 @@ func refresh_prompt_bar():
 	if prompt_bar != null:
 		prompt_bar.queue_redraw()
 
-var VERSION = "29"
+var VERSION = "30"
 
 # Cover art
 @onready var cover := $BoxContainer
@@ -443,9 +515,30 @@ func dir_walker(root):
 			dir_walker(maybe_dir.get_current_dir())
 		item = dir.get_next()
 
+var pad_debug = OS.get_environment("PLAIN_LAUNCHER_PAD_DEBUG") != ""
+var _pad_log: FileAccess = null
+
+func pad_note(text: String):
+	print(text)
+	if not pad_debug:
+		return
+	if _pad_log == null:
+		_pad_log = FileAccess.open("user://pad_debug.log", FileAccess.WRITE)
+	if _pad_log != null:
+		_pad_log.store_line(text)
+		_pad_log.flush()
+
+func log_pads():
+	for pad in Input.get_connected_joypads():
+		pad_note("PAD %d name=%s guid=%s known=%s" % [pad, Input.get_joy_name(pad), Input.get_joy_guid(pad), Input.is_joy_known(pad)])
+
 func _ready():
-	window_width = DisplayServer.screen_get_size(DisplayServer.window_get_current_screen()).x
-	window_height = DisplayServer.screen_get_size(DisplayServer.window_get_current_screen()).y
+	if pad_debug:
+		log_pads.call_deferred()
+	if Platform.is_desktop_build() and DisplayServer.get_name() != "headless" and OS.get_environment("PLAIN_LAUNCHER_WINDOWED") != "1":
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	window_width = display_size().x
+	window_height = display_size().y
 	if window_height / window_width >= 2.0:
 		title_offset = text_height
 		window_height -= title_offset
@@ -456,6 +549,8 @@ func _ready():
 	if root_path != null and !DirAccess.dir_exists_absolute(root_path):
 		waiting_root_path = root_path
 		root_path = null
+	if (root_path == null or root_path == "") and waiting_root_path == "":
+		_use_environment_root()
 
 	BACKDROP.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
 
@@ -484,17 +579,34 @@ func _ready():
 
 	load_hidden_list()
 
+	Input.joy_connection_changed.connect(func(_device, connected):
+		if connected:
+			ask_for_confirm_button.call_deferred())
+	Settings.migrate_text_factor(SettingsMenu.TEXT_SIZE_FACTORS)
 	if Settings.get_setting(Settings.CFG_CONFIRM_SWAP):
 		swap_confirm_key()
+	using_keyboard = Platform.is_desktop_build() and Input.get_connected_joypads().is_empty()
 
 	OS.request_permissions()
 
 	get_positions_files()
 
+	cover_area = ColorRect.new()
+	cover_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(cover_area)
+	move_child(cover_area, BACKDROP.get_index() + 1)
 	header_bar = ColorRect.new()
+	header_bar.z_index = BAR_Z
 	add_child(header_bar)
-	move_child(header_bar, BACKDROP.get_index() + 1)
+	move_child(header_bar, BACKDROP.get_index() + 2)
 	layout_header()
+	layout_cover_area()
+	row_stripes = RowStripes.new()
+	slot_holder.add_child(row_stripes)
+	slot_holder.move_child(row_stripes, 0)
+	inline_layer = InlineCovers.new()
+	slot_holder.add_child(inline_layer)
+	slot_holder.move_child(inline_layer, 1)
 	letter_scroller = LetterScroller.new()
 	letter_scroller.z_index = 4004
 	letter_scroller.size = Vector2(window_width, window_height)
@@ -514,6 +626,47 @@ func _ready():
 	prompt_bar.set_prompts(prompts)
 	show_message("Welcome to PlainLauncher!")
 	Navigator.go_to_main()
+
+func _use_environment_root():
+	var env_root = OS.get_environment("PLAIN_LAUNCHER_ROOT")
+	if env_root == "":
+		return
+	DirAccess.make_dir_recursive_absolute(env_root)
+	if StorageSetup.set_up_root(DirAccess.open(env_root)):
+		root_path = Settings.get_setting(Settings.CFG_ROOT)
+
+static func existing_dirs(candidates: Array) -> Array:
+	return candidates.filter(func(c): return c != "" and DirAccess.dir_exists_absolute(c))
+
+static func media_mounts(suffix: String) -> Array:
+	var mounts = []
+	for base in existing_dirs(["/run/media", "/run/media/deck", "/media/" + OS.get_environment("USER")]):
+		for child in DirAccess.get_directories_at(base):
+			mounts.append(base.path_join(child).path_join(suffix))
+	return mounts
+
+var _compat_prefixes = null
+
+func compat_prefixes() -> Array:
+	if OS.get_name() == "Android":
+		var external = Platform.get_external_storage_path()
+		return [external] if external != null else []
+	if _compat_prefixes == null:
+		var home = Platform.home_dir()
+		_compat_prefixes = existing_dirs(Array(OS.get_environment("PLAIN_LAUNCHER_ROMS").split(":")) + [home.path_join("Emulation/roms"), home.path_join("ROMs")] + media_mounts("Emulation/roms"))
+	return _compat_prefixes
+
+func compat_paths(system: String) -> Array:
+	var compat_file = get_compat_paths_filepath(system)
+	if not FileAccess.file_exists(compat_file):
+		return existing_dirs(Array(OS.get_environment("PLAIN_LAUNCHER_" + system + "_PATHS").split(":", false)))
+	var lines = Array(FileAccess.get_file_as_string(compat_file).split("\n")).map(func(l): return l.strip_edges()).filter(func(l): return l != "")
+	var paths = []
+	for prefix in compat_prefixes():
+		for line in lines:
+			paths.append(prefix + line)
+	paths.append_array(existing_dirs(Array(OS.get_environment("PLAIN_LAUNCHER_" + system + "_PATHS").split(":", false))))
+	return paths
 
 func load_hidden_list():
 	HIDDEN_LIST.clear()
@@ -698,17 +851,29 @@ func update_list_file_contents(key, new_list):
 	list_file_contents[key] = new_list
 	write_json(root_path + "/Config/COMMON/lists.json", list_file_contents, "   ")
 
+func display_size() -> Vector2i:
+	if OS.get_name() != "Android":
+		return DisplayServer.window_get_size()
+	return DisplayServer.screen_get_size(DisplayServer.window_get_current_screen())
+
 func resize():
-	window_width = DisplayServer.screen_get_size(DisplayServer.window_get_current_screen()).x
-	window_height = DisplayServer.screen_get_size(DisplayServer.window_get_current_screen()).y
+	window_width = display_size().x
+	window_height = display_size().y
 	if window_height / window_width >= 2.0:
 		title_offset = text_height * 5
 		window_height -= title_offset
 	else:
 		title_offset = 0
+	BACKDROP.size = Vector2(window_width, window_height)
+	for layer in [letter_scroller, touch_buttons]:
+		if layer != null:
+			layer.size = Vector2(window_width, window_height)
 	set_up_slots()
 	show_options(scroll_offset)
 	highlight_selection(option_selection)
+	if settings_panel != null:
+		settings_panel.relayout()
+	refresh_art()
 
 func load_external_texture(path):
 	var image = Image.new()
@@ -748,14 +913,19 @@ func list_layout(text_height: float, scale: float) -> Array:
 	var body_font: Font = font if font != null else $SlotHolder/Body.get_theme_font("font")
 	var list_size = int(text_height / 2.0)
 	var title_height = 0.0 if title_collapsed else size * 2.0
-	var bars = Settings.get_setting(Settings.CFG_BAR_COLOR) is Color
 	var top_edge = 0.0
 	if not title_collapsed:
-		top_edge = Settings.get_setting(Settings.CFG_TOP_MARGIN) + (title_height if bars else (title_height - body_font.get_height(size)) / 2.0 + body_font.get_ascent(size))
+		top_edge = Settings.get_setting(Settings.CFG_TOP_MARGIN) + title_height
 	var bottom_edge = window_height
 	if prompt_bar_enabled():
-		bottom_edge = window_height - bar_height if bars else window_height - bar_height / 2.0 + size * (PROMPT_BASELINE - CAP_HEIGHT)
-	return hug_layout(top_edge, bottom_edge, text_height * 0.5, body_font.get_ascent(list_size), list_size * CAP_HEIGHT, body_font.get_descent(list_size), text_height * TOP_GAP, text_height * BOTTOM_GAP)
+		bottom_edge = window_height - bar_height
+	var pad = maxf(0.0, (inline_box().y - list_size * CAP_HEIGHT) / 2.0) if inline_covers() else 0.0
+	var step = inline_row_step(text_height * 0.5, inline_box().y) if inline_covers() else text_height * 0.5
+	var layout = hug_layout(top_edge, bottom_edge, step, body_font.get_ascent(list_size), list_size * CAP_HEIGHT, body_font.get_descent(list_size), text_height * TOP_GAP + pad, text_height * BOTTOM_GAP + pad)
+	var peek = 0
+	if pad > 0.0:
+		peek = peek_rows_for(layout[1] + body_font.get_ascent(list_size) - list_size * CAP_HEIGHT / 2.0, layout[0], step, bottom_edge)
+	return [layout[0], layout[1], peek]
 
 func choose_text_sizes(base_height: float) -> Array:
 	var best = []
@@ -764,17 +934,18 @@ func choose_text_sizes(base_height: float) -> Array:
 		for scale_index in range(PROMPT_SCALE_STEPS + 1):
 			var scale = PROMPT_SCALE_MAX - (PROMPT_SCALE_MAX - PROMPT_SCALE_MIN) * scale_index / float(PROMPT_SCALE_STEPS)
 			var layout = list_layout(base_height * factor, scale)
-			var candidate = [layout[0], factor, scale, layout[1]]
+			var candidate = [layout[0], factor, scale, layout[1], layout[2]]
 			if best.is_empty() or better_layout(candidate, best):
 				best = candidate
 	return best
 
 func set_up_slots():
-	scaled_text_height = default_text_height * Settings.get_setting(Settings.CFG_SCALER)
+	scaled_text_height = default_text_height * Settings.text_scaler()
 
 	var outline_thickness = Settings.get_setting(Settings.CFG_VISUAL_LETTER_OUTLINES)
 	left_bound = Settings.get_setting(Settings.CFG_LEFT_MARGIN)
 	title = $SlotHolder/Title
+	title.z_index = BAR_Z
 	title.size.x = Global.window_width - left_bound * 2
 	title.size.y = title_bar_height()
 	title.horizontal_alignment = Settings.get_setting(Settings.CFG_VISUAL_TITLE_ORIENTATION)
@@ -810,7 +981,7 @@ func set_up_slots():
 	message.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
 	message.set("theme_override_font_sizes/font_size", scaled_text_height / 2.0)
 	$Pixel.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
-	$Pixel.scale = Vector2(16 * Settings.get_setting(Settings.CFG_SCALER), 16 * Settings.get_setting(Settings.CFG_SCALER))
+	$Pixel.scale = Vector2.ONE * 16 * Settings.text_scaler()
 	$Pixel.visible = false
 
 	for i in range(visible_slots.size()):
@@ -821,8 +992,9 @@ func set_up_slots():
 	fav_indicators.clear()
 
 	var body_alignment = Settings.get_setting(Settings.CFG_VISUAL_BODY_ORIENTATION)
-	var row_step = scaled_text_height * 0.5
-	var layout = [sizes[0], sizes[3]]
+	var row_step = row_step()
+	peek_rows = sizes[4] if sizes.size() > 4 else 0
+	var layout = [sizes[0] + peek_rows, sizes[3]]
 	for i in range(1, layout[0] + 1):
 		var new_slot: Label = message.duplicate()
 		slot_offset = left_bound + list_shift
@@ -1053,7 +1225,7 @@ func set_for_all_text(key, value, title_included=true):
 		text.set(key, value)
 
 func special_allowed():
-	if panel_open():
+	if panel_open() or launching:
 		return false
 	return Navigator.current_screen == "system_browser" or Navigator.current_screen == "game_browser" or Navigator.current_screen == "android_apps"
 
@@ -1090,6 +1262,27 @@ var _art_missing = {}
 var _art_loading_path = ""
 var _art_loading_task = -1
 var _art_wanted_path = ""
+var _art_wanted_since = 0
+var _queued_move = 0
+const ART_WAIT_MAX_MS = 600
+
+static func art_wait_over(wanted: String, known: bool, waited_ms: int) -> bool:
+	return wanted == "" or known or waited_ms >= ART_WAIT_MAX_MS
+
+func waiting_for_art() -> bool:
+	return not art_wait_over(_art_wanted_path, _art_wanted_path == "" or art_known(_art_wanted_path), Time.get_ticks_msec() - _art_wanted_since)
+
+func step_when_art_ready(direction: int) -> bool:
+	if waiting_for_art():
+		_queued_move = direction
+		return false
+	_queued_move = 0
+	if direction > 0:
+		move_down()
+	else:
+		move_up()
+	on_scroll()
+	return true
 
 func refresh_art(image_path=Global.get_image_path()):
 	if img_texture_override != null:
@@ -1100,10 +1293,16 @@ func refresh_art(image_path=Global.get_image_path()):
 		_art_wanted_path = ""
 		apply_cover_texture(null)
 		return
-	if cover_size() == Vector2.ZERO:
+	if cover_size() == Vector2.ZERO and not inline_covers():
 		_art_wanted_path = ""
 		apply_cover_texture(null)
 		return
+	if inline_covers():
+		apply_cover_texture(null)
+		if inline_layer != null:
+			inline_layer.queue_redraw()
+	if image_path != _art_wanted_path:
+		_art_wanted_since = Time.get_ticks_msec()
 	_art_wanted_path = image_path
 	var cached = cached_art(image_path)
 	if cached != null:
@@ -1159,6 +1358,14 @@ func art_known(path: String) -> bool:
 func next_art_to_load() -> String:
 	if _art_wanted_path != "" and not art_known(_art_wanted_path):
 		return _art_wanted_path
+	if inline_covers():
+		for i in range(visible_slots.size() + 2):
+			var row = shown_offset + i - 1
+			if row < 0 or row >= option_list.size():
+				continue
+			var row_path = get_image_path(option_list[row])
+			if art_exists(row_path) and not art_known(row_path):
+				return row_path
 	var offsets = [1, -1, 2]
 	for reach in range(2, nearby_reach + 1):
 		offsets.append_array([reach, -reach])
@@ -1180,9 +1387,14 @@ func load_next_art():
 	var box = art_box_size()
 	var thumb = thumbnail_path(path, box) if box.x > 0 and box.y > 0 else ""
 	_art_loading_path = path
+	if sync_loading:
+		_load_art_image(path, thumb, box)
+		return
 	_art_loading_task = WorkerThreadPool.add_task(_load_art_image.bind(path, thumb, box))
 
 func art_box_size() -> Vector2i:
+	if inline_covers():
+		return Vector2i(inline_box() * 2.0)
 	var size = cover_size()
 	var box = Vector2(window_width, window_height)
 	if size.x > 1.0:
@@ -1223,11 +1435,16 @@ func _on_art_loaded(path: String, image):
 		_art_loading_task = -1
 	if image == null:
 		_art_failed[path] = FileAccess.get_modified_time(path)
+		if inline_covers():
+			for i in range(visible_slots.size()):
+				place_slot(i)
 		if path == _art_wanted_path:
 			apply_cover_texture(null)
 	else:
 		var texture = ImageTexture.create_from_image(image)
 		cache_art(path, texture)
+		if inline_layer != null:
+			inline_layer.queue_redraw()
 		if path == _art_wanted_path:
 			apply_cover_texture(texture)
 		else:
@@ -1238,7 +1455,107 @@ func cover_size() -> Vector2:
 	var size = Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE)
 	if force_cover and (size == Vector2.ZERO or size.x >= 1.0):
 		return Settings.COVER_SIZES[2]
+	if inline_covers():
+		return Vector2.ZERO
 	return size
+
+const INLINE_SIZE_SHARE = 0.3
+const INLINE_COVER_ASPECT = 0.75
+const INLINE_ROW_GAP = 0.12
+
+func cover_style() -> String:
+	return "single" if force_cover else str(Settings.get_setting(Settings.CFG_COVER_STYLE))
+
+func inline_covers() -> bool:
+	return cover_style() == "inline" and art_enabled_here()
+
+static func inline_row_step(text_step: float, box_height: float) -> float:
+	return maxf(text_step, box_height * (1.0 + INLINE_ROW_GAP))
+
+func row_step() -> float:
+	var step = scaled_text_height * 0.5
+	return inline_row_step(step, inline_box().y) if inline_covers() else step
+
+static func inline_box_for(screen_height: float, cover: Vector2) -> Vector2:
+	var height = screen_height * cover.y * INLINE_SIZE_SHARE
+	return Vector2(height * INLINE_COVER_ASPECT, height)
+
+func inline_box() -> Vector2:
+	return inline_box_for(window_height, Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE))
+
+func inline_reserve() -> float:
+	return inline_box().x + left_bound + scaled_text_height * 0.3
+
+static func inline_slot_frame(left: float, width: float, reserve: float, cover_left: bool, has_art: bool) -> Vector2:
+	if cover_left:
+		return Vector2(left + reserve, width - reserve)
+	return Vector2(left, width - reserve if has_art else width)
+
+func inline_row_has_art(i: int) -> bool:
+	var row = shown_offset + i
+	if row < 0 or row >= option_list.size():
+		return false
+	var path = get_image_path(option_list[row])
+	return path != "" and art_exists(path) and not art_failed(path)
+
+func inline_box_rect(i: int) -> Rect2:
+	var box_size = inline_box()
+	var slot: Label = visible_slots[i]
+	var middle = slot.global_position.y + slot_text_middle(slot)
+	var left = left_bound if cover_on_left() else window_width - left_bound - box_size.x
+	return Rect2(Vector2(left, middle - box_size.y / 2.0), box_size)
+
+func lift_inline_cover() -> bool:
+	if not inline_covers() or option_list.is_empty():
+		return false
+	var i = option_selection - shown_offset
+	if i < 0 or i >= visible_slots.size():
+		return false
+	var path = get_image_path(get_selected())
+	var texture = cached_art(path) if path != "" else null
+	if texture == null:
+		return false
+	var box = Vector2(window_width, window_height) * Settings.COVER_SIZES[2]
+	var ratio = minf(box.x / texture.get_size().x, box.y / texture.get_size().y)
+	var thumb = InlineCovers.fit_rect(texture.get_size(), inline_box_rect(i))
+	cover_art.texture = texture
+	cover_art.scale = Vector2(ratio, ratio)
+	border.visible = false
+	drop_shadow.visible = false
+	if cover_halo != null:
+		cover_halo.visible = false
+	cover.modulate.a = 1.0
+	cover.position = thumb.get_center()
+	cover.scale = Vector2.ONE * (thumb.size.y / (texture.get_size().y * ratio))
+	cover.visible = true
+	inline_layer.hidden_row = option_selection
+	inline_layer.queue_redraw()
+	return true
+
+func drop_inline_cover():
+	cover.scale = Vector2.ONE
+	cover_art.texture = null
+	cover.visible = false
+	inline_layer.hidden_row = -1
+	inline_layer.queue_redraw()
+
+func place_slot(i: int, animate: bool = false):
+	if i < 0 or i >= visible_slots.size():
+		return
+	var slot: Label = visible_slots[i]
+	var x = slot_offset
+	var width = slot_size.x
+	if inline_covers():
+		var frame = inline_slot_frame(left_bound, list_text_width(), inline_reserve(), cover_on_left(), inline_row_has_art(i))
+		x = frame.x
+		width = frame.y
+	elif text_to_cover():
+		width = minf(width, text_limit_x() - x)
+	slot.size.x = width / slot.scale.x
+	if animate and effects_on() and not is_equal_approx(slot.position.x, x):
+		create_tween().tween_property(slot, "position:x", x, LIST_SLIDE_SECONDS).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	else:
+		slot.position.x = x
 
 const COVER_ANCHOR = Vector2(0.75, 0.5)
 const LEFT_COVER_ANCHOR = Vector2(0.25, 0.5)
@@ -1247,15 +1564,38 @@ const LIST_SLIDE_SECONDS = 0.18
 var list_shift = 0.0
 var _list_tween: Tween = null
 
+static func art_enabled_for(screen: String, cover: Vector2, system_art: bool) -> bool:
+	return cover != Vector2.ZERO and (screen != "system_browser" or system_art)
+
+func art_enabled_here() -> bool:
+	return art_enabled_for(Navigator.current_screen, Settings.get_setting(Settings.CFG_VISUAL_COVER_SIZE), Settings.get_setting(Settings.CFG_VISUAL_SYSTEM_ART))
+
+func text_to_cover() -> bool:
+	var size = cover_size()
+	return cover_area_color() != null and not cover_on_left() and not inline_covers() and size != Vector2.ZERO and size.x < 1.0 and art_enabled_here()
+
+static func cover_text_limit(screen_width: float, anchor_x: float, cover_share: float, gap: float) -> float:
+	return screen_width * anchor_x - screen_width * cover_share / 2.0 - gap
+
+func text_limit_x() -> float:
+	return cover_text_limit(window_width, right_cover_anchor_x(window_width, left_bound, window_width * cover_size().x), cover_size().x, scaled_text_height * 0.3)
+
 func cover_on_left() -> bool:
 	return Settings.get_setting(Settings.CFG_COVER_SIDE) == "left" and not force_cover
 
 func cover_anchor() -> Vector2:
 	if force_cover and window_height > window_width:
 		return PORTRAIT_COVER_ANCHOR
-	if not cover_on_left():
-		return COVER_ANCHOR
-	return Vector2(left_cover_anchor_x(window_width, left_bound, window_width * cover_size().x), LEFT_COVER_ANCHOR.y)
+	var anchor = Vector2(right_cover_anchor_x(window_width, left_bound, window_width * cover_size().x), COVER_ANCHOR.y) if not cover_on_left() else Vector2(left_cover_anchor_x(window_width, left_bound, window_width * cover_size().x), LEFT_COVER_ANCHOR.y)
+	if not force_cover and not inline_covers() and window_width > 0:
+		var span = cover_area_span(window_width, left_bound, window_width * cover_size().x, scaled_text_height * 0.3, cover_on_left(), false)
+		anchor.x = (span.x + span.y) / 2.0 / window_width
+	return anchor
+
+static func right_cover_anchor_x(width: float, right: float, box: float) -> float:
+	if width <= 0.0:
+		return COVER_ANCHOR.x
+	return (width - right - box / 2.0) / width
 
 static func left_cover_anchor_x(width: float, left: float, box: float) -> float:
 	return (left + box / 2.0) / maxf(1.0, width)
@@ -1265,7 +1605,9 @@ static func left_cover_shift(cover_width: float, gap: float) -> float:
 
 func slide_list_for_cover():
 	var target = 0.0
-	if cover_on_left() and cover.visible:
+	if inline_covers():
+		target = 0.0
+	elif cover_on_left() and art_enabled_here():
 		target = left_cover_shift(window_width * cover_size().x, scaled_text_height * 0.3)
 	if is_equal_approx(target, list_shift) and (_list_tween == null or not _list_tween.is_running()):
 		return
@@ -1278,9 +1620,10 @@ func set_list_shift(value: float):
 	list_shift = value
 	slot_offset = left_bound + list_shift
 	slot_size.x = list_text_width() - list_shift
-	for slot in visible_slots:
-		slot.position.x = slot_offset
-		slot.size.x = slot_size.x / slot.scale.x
+	for i in range(visible_slots.size()):
+		place_slot(i)
+	if row_stripes != null:
+		row_stripes.queue_redraw()
 
 const NEARBY_SCALE = 0.5
 const NEARBY_ALPHA = 0.55
@@ -1299,7 +1642,7 @@ static func nearby_offset(main_height: float, small_height: float, gap: float) -
 
 func nearby_slots(direction: int, top_limit: float, bottom_limit: float, gap: float, nominal: float) -> Array:
 	var slots = []
-	var main_half = cover_art.texture.get_size().y * cover_art.scale.y / 2.0
+	var main_half = main_cover_height() / 2.0
 	var center = cover.position.y + cover_art.position.y
 	var edge = center + direction * (main_half + gap)
 	var step = 1
@@ -1320,13 +1663,119 @@ func nearby_slots(direction: int, top_limit: float, bottom_limit: float, gap: fl
 func nearby_box() -> Vector2:
 	return Vector2(window_width, window_height) * cover_size() * NEARBY_SCALE
 
+const WHEEL_ANGLE = 0.5
+const WHEEL_REACH = 3
+const WHEEL_SECONDS = 0.16
+var wheel_phase = 0.0
+var _wheel_selection = -1
+var _wheel_tween: Tween = null
+
+static func wheel_place(u: float, main_height: float, gap: float, side: float) -> Dictionary:
+	var a = absf(u)
+	var radius = (main_height * (0.5 + NEARBY_SCALE * 0.5) + gap) / sin(WHEEL_ANGLE)
+	var angle = clampf(u * WHEEL_ANGLE, -PI / 2.0, PI / 2.0)
+	var scale = lerpf(1.0, NEARBY_SCALE, minf(a, 1.0)) * pow(0.85, maxf(0.0, a - 1.0))
+	var alpha = maxf(NEARBY_MIN_ALPHA, lerpf(1.0, NEARBY_ALPHA, minf(a, 1.0)) - NEARBY_FADE_STEP * maxf(0.0, a - 1.0))
+	return {"offset": Vector2(side * radius * (1.0 - cos(angle)), radius * sin(angle)), "scale": scale, "alpha": alpha}
+
+func set_wheel_phase(value: float):
+	wheel_phase = value
+	update_wheel()
+
+func update_wheel():
+	if launching:
+		return
+	if _wheel_selection != option_selection:
+		var delta = option_selection - _wheel_selection
+		if _wheel_selection >= 0 and absi(delta) == 1 and effects_on():
+			if _wheel_tween != null:
+				_wheel_tween.kill()
+			wheel_phase = delta
+			_wheel_selection = option_selection
+			_wheel_tween = create_tween()
+			_wheel_tween.tween_method(set_wheel_phase, float(delta), 0.0, WHEEL_SECONDS).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			return
+		_wheel_selection = option_selection
+		wheel_phase = 0.0
+	nearby_reach = WHEEL_REACH
+	var home = cover_home()
+	var main_height = main_cover_height()
+	var gap = scaled_text_height * 0.2
+	var side = -1.0 if cover_on_left() else 1.0
+	var limits = Vector2(title.position.y + title.size.y if not title_collapsed else 0.0, window_height - prompt_bar_height())
+	var main = wheel_place(wheel_phase, main_height, gap, side)
+	cover.position = home + main.offset
+	cover.scale = Vector2.ONE * main.scale
+	cover_art.modulate.a = main.alpha
+	var box = Vector2(window_width, window_height) * cover_size()
+	var shown = 0
+	for direction in [-1, 1]:
+		for k in range(1, WHEEL_REACH + 1):
+			var index = option_selection + direction * k
+			if index < 0 or index >= option_list.size():
+				break
+			var path = get_image_path(option_list[index])
+			var texture = cached_art(path) if path != "" else null
+			if texture == null:
+				continue
+			var place = wheel_place(direction * k + wheel_phase, main_height, gap, side)
+			var ratio = minf(box.x / texture.get_size().x, box.y / texture.get_size().y) * place.scale
+			var center = home + place.offset
+			var height = texture.get_size().y * ratio
+			if center.y + height / 2.0 < limits.x or center.y - height / 2.0 > limits.y:
+				continue
+			var crop = nearby_crop(center.y, height, limits.x, limits.y) / ratio
+			var sprite = _nearby_sprite(shown)
+			shown += 1
+			sprite.texture = texture
+			sprite.scale = Vector2.ONE * ratio / main.scale
+			sprite.region_enabled = true
+			sprite.region_rect = Rect2(0, crop.x, texture.get_size().x, texture.get_size().y - crop.x - crop.y)
+			sprite.position = (center - cover.position) / main.scale + Vector2(0, (crop.x - crop.y) * ratio / 2.0 / main.scale)
+			sprite.modulate = Color(1, 1, 1, place.alpha)
+			sprite.visible = sprite.region_rect.size.y > 0
+	for k in range(shown, nearby_art.size()):
+		nearby_art[k].visible = false
+	load_next_art()
+
+var stack_phase = 0.0
+var _stack_selection = -1
+var _stack_tween: Tween = null
+
+func set_stack_phase(value: float):
+	stack_phase = value
+	update_nearby_covers()
+
+static func stack_pitch(main_height: float, gap: float) -> float:
+	return main_height * (0.5 + NEARBY_SCALE * 0.5) + gap
+
+func follow_stack_selection() -> bool:
+	if _stack_selection == option_selection:
+		return false
+	var delta = option_selection - _stack_selection
+	var animate = _stack_selection >= 0 and absi(delta) == 1 and effects_on()
+	_stack_selection = option_selection
+	if _stack_tween != null:
+		_stack_tween.kill()
+	stack_phase = 0.0
+	if animate:
+		_stack_tween = create_tween()
+		_stack_tween.tween_method(set_stack_phase, float(delta), 0.0, WHEEL_SECONDS).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	return animate
+
 func update_nearby_covers():
-	if cover == null or cover_art == null:
+	if cover == null or cover_art == null or launching:
 		return
 	nearby_reach = 0
-	var enabled = Settings.get_setting(Settings.CFG_NEARBY_COVERS) and cover.visible and cover_art.texture != null and not force_cover
+	var enabled = cover_style() in ["stacked", "wheel"] and cover.visible
+	if enabled and cover_style() == "wheel":
+		update_wheel()
+		return
+	if enabled and follow_stack_selection():
+		return
 	var shown = 0
 	if enabled:
+		cover.position.y = cover_home().y + stack_phase * stack_pitch(main_cover_height(), scaled_text_height * 0.2)
 		var limits = Vector2(title.position.y + title.size.y if not title_collapsed else 0.0, window_height - prompt_bar_height())
 		var gap = scaled_text_height * 0.2
 		for direction in [-1, 1]:
@@ -1353,6 +1802,10 @@ func update_nearby_covers():
 	if enabled:
 		load_next_art()
 
+func hide_nearby_art():
+	for sprite in nearby_art:
+		sprite.visible = false
+
 func _nearby_sprite(k: int) -> Sprite2D:
 	while nearby_art.size() <= k:
 		var sprite = Sprite2D.new()
@@ -1363,33 +1816,65 @@ func _nearby_sprite(k: int) -> Sprite2D:
 
 func fit_text_to_cover():
 	slide_list_for_cover()
+	layout_cover_area()
 	update_nearby_covers()
 	if cover_halo == null:
 		cover_halo = CoverHalo.new()
 		cover.add_child(cover_halo)
 		cover.move_child(cover_halo, 0)
-	cover_halo.visible = cover.visible and cover_art.texture != null and not force_cover and not cover_on_left()
-	if not cover_halo.visible:
+	var framed = cover.visible and cover_art.texture != null and not force_cover and not cover_on_left()
+	cover_halo.visible = framed and Navigator.current_screen != "system_browser"
+	if not framed:
 		return
 	var border_size = Settings.get_setting(Settings.CFG_VISUAL_BORDER) if border.visible else Vector2.ZERO
 	cover_halo.half_size = (cover_art.texture.get_size() * cover_art.scale + border_size) / 2.0
 	cover_halo.feather = scaled_text_height * COVER_FADE
-	cover_halo.color = Settings.get_setting(Settings.CFG_BG_COLOR)
+	cover_halo.color = cover_area_color() if cover_area_color() != null else Settings.get_setting(Settings.CFG_BG_COLOR)
 	cover_halo.queue_redraw()
+
+const BAR_Z = 4001
 
 func cover_z() -> int:
 	var wide_panel = settings_panel != null and settings_panel.panel_ratio() > SlidePanel.WIDTH_RATIO + 0.001
 	return 4003 if force_cover and not wide_panel else 4000
 
+static func letter_shifted_x(home_x: float, slide: float, shift: float) -> float:
+	return home_x - slide * shift
+
+func cover_home() -> Vector2:
+	var home = Vector2(window_width, window_height) * cover_anchor()
+	if letter_scroller != null and not cover_on_left() and letter_scroller.slide > 0.0:
+		home.x = letter_shifted_x(home.x, letter_scroller.slide, letter_scroller.cover_shift())
+	return home
+
+func main_cover_height() -> float:
+	if cover_art.texture != null:
+		return cover_art.texture.get_size().y * cover_art.scale.y
+	return window_height * cover_size().y
+
+static func keeps_empty_slot(style: String, size: Vector2, forced: bool, enabled_here: bool) -> bool:
+	return style in ["stacked", "wheel"] and size != Vector2.ZERO and not forced and enabled_here
+
 func apply_cover_texture(texture):
 	if texture == null or cover_size() == Vector2.ZERO:
 		cover_art.texture = null
-		cover.visible = false
+		cover.visible = keeps_empty_slot(cover_style(), cover_size(), force_cover, art_enabled_here()) and not inline_covers()
+		if cover.visible:
+			border.visible = false
+			drop_shadow.visible = false
+			cover.position = cover_home()
+			if cover_style() != "wheel" and not launching:
+				cover.scale = Vector2.ONE
 		fit_text_to_cover()
 		return
 	cover.modulate.a = Settings.get_setting(Settings.CFG_VISUAL_COVER_OPACITY)
 	var size = cover_size()
-	cover.position = Vector2(window_width, window_height) * cover_anchor()
+	if cover_style() != "wheel" and not launching:
+		cover.scale = Vector2.ONE
+		cover_art.modulate.a = 1.0
+	if effects_on() and texture != _last_cover_texture and not launching and cover_style() != "wheel":
+		pop_cover()
+	_last_cover_texture = texture
 	cover_art.texture = texture
 	var scale_ratio_x = ((Global.window_width) * size.x) / (cover_art.texture.get_size().x + Settings.get_setting(Settings.CFG_VISUAL_BORDER).x)
 	var scale_ratio_y = (Global.window_height * size.y) / (cover_art.texture.get_size().y + Settings.get_setting(Settings.CFG_VISUAL_BORDER).y)
@@ -1402,6 +1887,7 @@ func apply_cover_texture(texture):
 	var scale_ratio = min(scale_ratio_x, scale_ratio_y)
 
 	cover_art.scale = Vector2(scale_ratio, scale_ratio)
+	cover.position = cover_home()
 	cover.z_index = cover_z()
 
 	if Settings.get_setting(Settings.CFG_VISUAL_BORDER) != Vector2.ZERO:
@@ -1442,11 +1928,12 @@ func highlight_selection(next_selection=option_selection):
 			slot.text = "•" + slot.text
 		"""
 		slot.size = slot_size
+		place_slot(i)
 		if scroll_offset + i < option_list.size() and HIDDEN_LIST.get(option_list[scroll_offset + i].absolute_path, false):
 			slot.modulate.a = 0.1
 		slot.scale = Vector2(1.0, 1.0)
 	option_selection = next_selection
-	if option_list.size() < visible_slots.size():
+	if option_list.size() < focus_rows():
 		scroll_offset = 0
 	elif option_list.is_empty():
 		scroll_offset = 0
@@ -1454,20 +1941,420 @@ func highlight_selection(next_selection=option_selection):
 	elif visible_slots.is_empty():
 		scroll_offset = 0
 		return
-	elif option_selection - scroll_offset >= visible_slots.size():
+	elif option_selection - scroll_offset >= focus_rows():
 		print("OPTION SELECTION: " + str(option_selection) + " SCROLL OFFSET " + str(scroll_offset) + " VISIBLE_SLOT SIZE " + str(visible_slots.size()))
-		scroll_offset = option_selection - visible_slots.size() + 1
+		scroll_offset = option_selection - focus_rows() + 1
 		print("NEW SCROLL OFFSET " + str(scroll_offset))
 		show_options(scroll_offset)
 		highlight_selection()
 		return
 	if option_selection - scroll_offset < visible_slots.size():
-		visible_slots[option_selection-scroll_offset].modulate.a = 1.0
+		var selected_slot = visible_slots[option_selection-scroll_offset]
+		selected_slot.modulate.a = 1.0
+		if _highlight_tween != null:
+			_highlight_tween.kill()
+		if effects_on() and option_selection != _last_highlighted:
+			selected_slot.modulate.a = HIGHLIGHT_FADE_FROM
+			_highlight_tween = create_tween()
+			_highlight_tween.tween_property(selected_slot, "modulate:a", 1.0, HIGHLIGHT_FADE_SECONDS).set_ease(Tween.EASE_OUT)
+		_last_highlighted = option_selection
+		if inline_layer != null:
+			inline_layer.queue_redraw()
 		#fav_indicators[option_selection-scroll_offset].modulate.a = 1.0
 	else:
-		show_options(option_selection - visible_slots.size())
+		show_options(option_selection - focus_rows())
 	if post_draw_callback != null:
 		post_draw_callback.call()
+
+const HIGHLIGHT_FADE_FROM = 0.45
+const HIGHLIGHT_FADE_SECONDS = 0.12
+const COVER_POP_FROM = 0.93
+const COVER_POP_SECONDS = 0.22
+const LAUNCH_DIM = 0.88
+const LAUNCH_SECONDS = 0.3
+const LAUNCH_HOLD_SECONDS = 1.0
+const LAUNCH_VIEW_MIN_SECONDS = 0.5
+const LAUNCH_COVER_SHARE = 0.55
+const LAUNCH_COVER_MAX_SCALE = 1.8
+const LAUNCH_MARGIN = 0.5
+const SETTLE_SECONDS = 0.35
+const OPEN_SECONDS = 0.3
+const OPEN_HOLD_SECONDS = 0.12
+const FLASH_BRIGHTNESS = 1.8
+const FLASH_OUT_SECONDS = 0.14
+const COVER_PRESS_SCALE = 0.93
+const COVER_PRESS_SECONDS = 0.06
+const PRESS_SCALE = 0.93
+const PRESS_SECONDS = 0.06
+const RELEASE_SECONDS = 0.2
+var _highlight_tween: Tween = null
+var _last_highlighted = -1
+var _cover_pop: Tween = null
+var _last_cover_texture = null
+var _launch_flash: ColorRect = null
+var launching = false
+
+func effects_on() -> bool:
+	return Settings.get_setting(Settings.CFG_EFFECTS)
+
+func pop_cover():
+	if _cover_pop != null:
+		_cover_pop.kill()
+	cover.scale = Vector2.ONE * COVER_POP_FROM
+	_cover_pop = create_tween()
+	_cover_pop.tween_property(cover, "scale", Vector2.ONE, COVER_POP_SECONDS).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+static func launcher_label(emulator: String, core) -> String:
+	if emulator.to_lower().begins_with("retroarch") and core != null and str(core) not in ["", "NULL"]:
+		return "%s (%s)" % [emulator, core]
+	return emulator
+
+static func launch_lines(game_name: String, launcher_name: String) -> Array:
+	return [["Launching", false], [game_name, true], ["with launcher config", false], [launcher_name, true]]
+
+static func launch_cover_scale(cover_height: float, window_height: float) -> float:
+	if cover_height <= 0.0:
+		return 1.0
+	return clampf(window_height * LAUNCH_COVER_SHARE / cover_height, 1.0, LAUNCH_COVER_MAX_SCALE)
+
+func _launch_text(lines: Array) -> Control:
+	var holder = Control.new()
+	holder.z_index = 4006
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var fg: Color = Settings.get_setting(Settings.CFG_FG_COLOR)
+	var y = 0.0
+	for line in lines:
+		var label = Label.new()
+		label.text = line[0]
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		var size = int(scaled_text_height * (0.5 if line[1] else 0.3))
+		label.add_theme_font_size_override("font_size", size)
+		label.add_theme_font_override("font", font if font != null else title.get_theme_font("font"))
+		label.modulate = Color(fg, 1.0 if line[1] else 0.6)
+		label.position = Vector2(-window_width * 0.45, y)
+		label.size = Vector2(window_width * 0.9, size * 1.4)
+		holder.add_child(label)
+		y += size * 1.4
+	holder.set_meta("height", y)
+	return holder
+
+static func launch_parts(view: String, has_cover: bool) -> Dictionary:
+	return {"cover": has_cover and view in ["cover_info", "cover"], "info": view in ["cover_info", "info"]}
+
+const SOUNDS = {"accept": "res://sounds/accept.mp3", "back": "res://sounds/back.mp3", "move": "res://sounds/move.mp3"}
+const SOUND_PITCH_VARIATION = {"accept": 1.05, "back": 1.05, "move": 1.12}
+var _sound_players = {}
+var _sound_frames = {}
+var _press_tween: Tween = null
+
+const SOUND_BASE_DB = -10.0
+
+static func sound_db(master: int, volume: int) -> float:
+	var linear = clampf(master / 100.0, 0.0, 1.0) * clampf(volume / 100.0, 0.0, 1.0)
+	return SOUND_BASE_DB + linear_to_db(linear) if linear > 0.0 else -80.0
+
+func play_sound(sound: String):
+	var db = sound_db(int(Settings.get_setting(Settings.CFG_VOLUME_MASTER)), int(Settings.get_setting(Settings.SOUND_VOLUME_KEYS[sound])))
+	if db <= -80.0 or _sound_frames.get(sound, -1) == Engine.get_process_frames():
+		return
+	_sound_frames[sound] = Engine.get_process_frames()
+	if not _sound_players.has(sound):
+		var randomizer = AudioStreamRandomizer.new()
+		randomizer.random_pitch = SOUND_PITCH_VARIATION.get(sound, 1.05)
+		randomizer.add_stream(0, load(SOUNDS[sound]))
+		var player = AudioStreamPlayer.new()
+		player.stream = randomizer
+		add_child(player)
+		_sound_players[sound] = player
+	_sound_players[sound].volume_db = db
+	_sound_players[sound].play()
+
+func play_click():
+	play_sound("accept")
+
+func back_just_pressed() -> bool:
+	return Input.is_action_just_pressed("key_back") or Input.is_action_just_pressed("select" if confirm_swapped else "back")
+
+func confirm_just_released() -> bool:
+	return Input.is_action_just_released("key_confirm") or Input.is_action_just_released("back" if confirm_swapped else "select")
+
+static func text_start(text_width: float, slot_width: float, alignment: HorizontalAlignment) -> float:
+	var width = minf(text_width, slot_width)
+	match alignment:
+		HORIZONTAL_ALIGNMENT_CENTER:
+			return (slot_width - width) / 2.0
+		HORIZONTAL_ALIGNMENT_RIGHT:
+			return slot_width - width
+	return 0.0
+
+func press_pivot(slot: Label):
+	var text_width = slot.get_theme_font("font").get_string_size(slot.text, HORIZONTAL_ALIGNMENT_LEFT, -1, slot.get_theme_font_size("font_size")).x
+	slot.pivot_offset = Vector2(text_start(text_width, slot.size.x, slot.horizontal_alignment), slot.size.y / 2.0)
+
+func press_feedback(pressed: bool):
+	if visible_slots.is_empty() or option_selection - scroll_offset >= visible_slots.size() or option_selection < scroll_offset:
+		return
+	var slot = visible_slots[option_selection - scroll_offset]
+	press_pivot(slot)
+	if _press_tween != null:
+		_press_tween.kill()
+	_press_tween = create_tween()
+	if pressed:
+		_press_tween.tween_property(slot, "scale", Vector2.ONE * PRESS_SCALE, PRESS_SECONDS).set_ease(Tween.EASE_OUT)
+	else:
+		_press_tween.tween_property(slot, "scale", Vector2.ONE, RELEASE_SECONDS).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+func show_power_screen(text: String):
+	launching = true
+	if prompt_bar != null:
+		prompt_bar.visible = false
+	if touch_buttons != null:
+		touch_buttons.hide_now()
+	if cover != null:
+		cover.visible = false
+	var screen = _overlay(4100)
+	screen.size = Vector2(window_width, window_height + title_offset)
+	screen.color = Color(Settings.get_setting(Settings.CFG_BG_COLOR), 0.0)
+	var label = Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.size = screen.size
+	label.add_theme_font_size_override("font_size", int(scaled_text_height * 0.5))
+	label.add_theme_font_override("font", font if font != null else title.get_theme_font("font"))
+	label.modulate = Settings.get_setting(Settings.CFG_FG_COLOR)
+	screen.add_child(label)
+	create_tween().tween_property(screen, "color:a", 1.0, 0.2)
+
+func _overlay(z: int) -> ColorRect:
+	var rect = ColorRect.new()
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.z_index = z
+	add_child(rect)
+	return rect
+
+var shown_offset = 0
+
+func selected_slot() -> Label:
+	var i = option_selection - shown_offset
+	return visible_slots[i] if i >= 0 and i < visible_slots.size() else null
+
+static func slot_text_middle(slot: Label) -> float:
+	if slot.vertical_alignment == VERTICAL_ALIGNMENT_CENTER:
+		return slot.size.y / 2.0
+	return slot.get_theme_font("font").get_height(slot.get_theme_font_size("font_size")) / 2.0
+
+static func centered_left(text_width: float, width: float) -> float:
+	return (width - text_width) / 2.0
+
+func _text_flyer(slot: Label) -> Label:
+	var slot_font = slot.get_theme_font("font")
+	var font_size = slot.get_theme_font_size("font_size")
+	var measure = func(t: String) -> float:
+		return slot_font.get_string_size(t.to_upper() if slot.uppercase else t, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var shown = slot.text.strip_edges()
+	var full_width = measure.call(slot.text)
+	var width = minf(measure.call(shown), window_width * 0.9)
+	var flyer = Label.new()
+	flyer.text = shown
+	flyer.uppercase = slot.uppercase
+	flyer.autowrap_mode = TextServer.AUTOWRAP_OFF
+	flyer.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	flyer.clip_text = true
+	flyer.vertical_alignment = slot.vertical_alignment
+	flyer.add_theme_font_override("font", slot_font)
+	flyer.add_theme_font_size_override("font_size", font_size)
+	flyer.add_theme_constant_override("outline_size", slot.get_theme_constant("outline_size"))
+	flyer.add_theme_color_override("font_outline_color", slot.get_theme_color("font_outline_color"))
+	flyer.modulate = Color(Settings.get_setting(Settings.CFG_FG_COLOR), 1.0)
+	flyer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flyer.z_index = 4006
+	flyer.size = Vector2(width, slot.size.y)
+	var start = text_start(full_width, slot.size.x, slot.horizontal_alignment) + maxf(0.0, full_width - measure.call(shown))
+	flyer.position = slot.global_position - global_position + Vector2(start, 0.0)
+	flyer.set_meta("middle", slot_text_middle(slot))
+	flyer.set_meta("height", slot_font.get_height(font_size))
+	add_child(flyer)
+	return flyer
+
+func open_with_effect(go: Callable):
+	if launching:
+		return
+	var slot = selected_slot()
+	if not effects_on() or slot == null or slot.text.strip_edges() == "":
+		go.call()
+		return
+	launching = true
+	hide_nearby_art()
+	vibrate(40)
+	play_click()
+	if _cover_pop != null:
+		_cover_pop.kill()
+	if _launch_flash == null:
+		_launch_flash = _overlay(3999)
+	_launch_flash.size = Vector2(window_width, window_height + title_offset)
+	_launch_flash.color = Color(Settings.get_setting(Settings.CFG_BG_COLOR), 0.0)
+	var flyer = _text_flyer(slot)
+	slot.self_modulate.a = 0.0
+	var lifted = lift_inline_cover()
+	var has_art = cover.visible and cover_art.texture != null
+	var art_height = cover_art.texture.get_size().y * cover_art.scale.y * (1.0 if lifted else cover.scale.y) if has_art else 0.0
+	var gap = scaled_text_height * 0.2 if has_art else 0.0
+	var text_height: float = flyer.get_meta("height")
+	var top = (window_height - art_height - gap - text_height) / 2.0
+	var home_position = cover.position
+	var home_z = cover.z_index
+	var tween = create_tween().set_parallel()
+	tween.tween_property(_launch_flash, "color:a", 1.0, OPEN_SECONDS)
+	tween.tween_property(flyer, "position", Vector2(centered_left(flyer.size.x, window_width), top + art_height + gap + text_height / 2.0 - flyer.get_meta("middle")), OPEN_SECONDS).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if prompt_bar != null:
+		tween.tween_property(prompt_bar, "modulate:a", 0.0, OPEN_SECONDS)
+	if has_art:
+		cover.z_index = 4004
+		tween.tween_property(cover, "position", Vector2(window_width / 2.0, top + art_height / 2.0), OPEN_SECONDS).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		if lifted:
+			tween.tween_property(cover, "scale", Vector2.ONE, OPEN_SECONDS).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.chain().tween_interval(OPEN_HOLD_SECONDS)
+	var ghost = Sprite2D.new()
+	ghost.z_index = 4004
+	tween.chain().tween_callback(func():
+		if has_art:
+			ghost.texture = cover_art.texture
+			ghost.centered = cover_art.centered
+			ghost.offset = cover_art.offset
+			add_child(ghost)
+			ghost.global_transform = cover_art.global_transform
+			cover.visible = false
+		if lifted:
+			drop_inline_cover()
+		cover.position = home_position
+		cover.z_index = home_z
+		if is_instance_valid(slot):
+			slot.self_modulate.a = 1.0
+		go.call())
+	tween.chain().tween_property(_launch_flash, "color:a", 0.0, SETTLE_SECONDS)
+	tween.parallel().tween_property(flyer, "position:x", window_width + scaled_text_height, SETTLE_SECONDS).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	if has_art:
+		var art_width = cover_art.texture.get_size().x * cover_art.scale.x * cover.scale.x
+		tween.parallel().tween_property(ghost, "position:x", -art_width, SETTLE_SECONDS).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	if prompt_bar != null:
+		tween.parallel().tween_property(prompt_bar, "modulate:a", 1.0, SETTLE_SECONDS)
+	tween.chain().tween_callback(func():
+		flyer.queue_free()
+		if ghost.is_inside_tree():
+			ghost.queue_free()
+		else:
+			ghost.free()
+		launching = false
+		update_nearby_covers())
+
+func launch_with_effect(launch: Callable, game_name: String = "", launcher_name: String = ""):
+	if launching:
+		return
+	var effects = effects_on()
+	var view = Settings.get_setting(Settings.CFG_LAUNCH_VIEW)
+	var lifted = view in ["cover_info", "cover"] and lift_inline_cover()
+	var has_cover = cover.visible and cover_art.texture != null
+	var parts = launch_parts(view, has_cover)
+	if not effects and not parts.cover and not parts.info:
+		launch.call()
+		return
+	launching = true
+	hide_nearby_art()
+	var seconds = LAUNCH_SECONDS if effects else 0.01
+	if _launch_flash == null:
+		_launch_flash = _overlay(3999)
+	_launch_flash.size = Vector2(window_width, window_height + title_offset)
+	_launch_flash.color = Color(Settings.get_setting(Settings.CFG_BG_COLOR), 0.0)
+	if _cover_pop != null:
+		_cover_pop.kill()
+	var lines = launch_lines(game_name, launcher_name) if parts.info else ([[game_name, true]] if parts.cover and game_name != "" else [])
+	var text = _launch_text(lines) if not lines.is_empty() else null
+	if text != null:
+		add_child(text)
+	var slot = selected_slot() if effects and text != null else null
+	var flyer = _text_flyer(slot) if slot != null and slot.text.strip_edges() != "" else null
+	var title_line = text.get_child(lines.find_custom(func(l): return l[1])) if flyer != null else null
+	if flyer != null:
+		title_line.self_modulate.a = 0.0
+		slot.self_modulate.a = 0.0
+	var text_height: float = text.get_meta("height") if text != null else 0.0
+	var home_position = cover.position
+	var home_scale = cover.scale
+	var home_z = cover.z_index
+	var center = cover.position
+	var cover_scale = 1.0
+	if parts.cover:
+		var cover_height = cover_art.texture.get_size().y * cover_art.scale.y
+		var gap = scaled_text_height * 0.2 if text != null else 0.0
+		var margin = scaled_text_height * LAUNCH_MARGIN
+		cover_scale = minf(launch_cover_scale(cover_height, window_height), (window_height - margin * 2.0 - gap - text_height) / cover_height)
+		var shown_height = cover_height * cover_scale
+		var top = maxf(margin, (window_height - shown_height - gap - text_height) / 2.0)
+		center = Vector2(window_width / 2.0, top + shown_height / 2.0)
+		if text != null:
+			text.position = Vector2(window_width / 2.0, top + shown_height + gap)
+		cover.z_index = 4004
+	elif text != null:
+		text.position = Vector2(window_width / 2.0, (window_height - text_height) / 2.0)
+	if text != null:
+		text.modulate.a = 0.0
+	if flyer != null:
+		var line_size = title_line.get_theme_font_size("font_size")
+		var line_middle = text.position.y + title_line.position.y + title_line.get_theme_font("font").get_height(line_size) / 2.0
+		flyer.set_meta("target", Vector2(centered_left(flyer.size.x, window_width), line_middle - flyer.get_meta("middle")))
+	if effects:
+		vibrate(40)
+		play_click()
+		if has_cover:
+			cover_art.self_modulate = Color(FLASH_BRIGHTNESS, FLASH_BRIGHTNESS, FLASH_BRIGHTNESS)
+			var flash = create_tween()
+			flash.tween_property(cover_art, "self_modulate", Color.WHITE, FLASH_OUT_SECONDS)
+			var press = create_tween()
+			if not lifted:
+				press.tween_property(cover, "scale", Vector2.ONE * COVER_PRESS_SCALE, COVER_PRESS_SECONDS).set_ease(Tween.EASE_OUT)
+			press.tween_property(cover, "scale", Vector2.ONE * cover_scale, seconds).set_trans(Tween.TRANS_BACK if not lifted else Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var shows_view = parts.cover or parts.info
+	var tween = create_tween().set_parallel()
+	tween.tween_property(_launch_flash, "color:a", LAUNCH_DIM if shows_view else 0.0, seconds)
+	if text != null:
+		tween.tween_property(text, "modulate:a", 1.0, seconds)
+	if flyer != null:
+		tween.tween_property(flyer, "position", flyer.get_meta("target"), seconds).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if shows_view and prompt_bar != null:
+		tween.tween_property(prompt_bar, "modulate:a", 0.0, seconds)
+	if parts.cover:
+		tween.tween_property(cover, "position", center, seconds).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		if not effects:
+			tween.tween_property(cover, "scale", Vector2.ONE * cover_scale, seconds)
+	if shows_view:
+		tween.chain().tween_interval(LAUNCH_VIEW_MIN_SECONDS)
+	tween.chain().tween_callback(launch)
+	tween.chain().tween_interval(LAUNCH_HOLD_SECONDS if shows_view else 0.0)
+	tween.chain().tween_property(_launch_flash, "color:a", 0.0, SETTLE_SECONDS if effects else 0.01)
+	if text != null:
+		tween.parallel().tween_property(text, "modulate:a", 0.0, SETTLE_SECONDS if effects else 0.01)
+	if flyer != null:
+		tween.parallel().tween_property(flyer, "modulate:a", 0.0, SETTLE_SECONDS)
+	if prompt_bar != null:
+		tween.parallel().tween_property(prompt_bar, "modulate:a", 1.0, SETTLE_SECONDS if effects else 0.01)
+	if parts.cover:
+		tween.parallel().tween_property(cover, "position", home_position, SETTLE_SECONDS if effects else 0.01).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.parallel().tween_property(cover, "scale", home_scale, SETTLE_SECONDS if effects else 0.01).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.chain().tween_callback(func():
+		if text != null:
+			text.queue_free()
+		if flyer != null:
+			flyer.queue_free()
+			if is_instance_valid(slot):
+				slot.self_modulate.a = 1.0
+		cover.z_index = home_z
+		if lifted:
+			drop_inline_cover()
+		launching = false
+		update_nearby_covers())
 
 func refresh_option_text():
 	show_options(scroll_offset)
@@ -1476,17 +2363,18 @@ func show_options(offset=0):
 	if offset == null:
 		offset = 0
 		scroll_offset = 0
-	if option_list.size() < visible_slots.size():
+	if option_list.size() < focus_rows():
 		scroll_offset = 0
 		offset = 0
-	if option_selection - scroll_offset > visible_slots.size():
-		scroll_offset = option_selection - visible_slots.size() + 1
+	if option_selection - scroll_offset > focus_rows():
+		scroll_offset = option_selection - focus_rows() + 1
 		offset = scroll_offset
 	# Clamp so the last page is always full — no empty slots at the bottom
-	var max_offset = max(0, option_list.size() - visible_slots.size())
+	var max_offset = max(0, option_list.size() - focus_rows())
 	if offset > max_offset:
 		offset = max_offset
 		scroll_offset = offset
+	shown_offset = offset
 	for i in range(0, Global.visible_slots.size()):
 		if i+offset >= option_list.size():
 			set_slot(i, "")
@@ -1497,7 +2385,12 @@ func show_options(offset=0):
 		if is_favorite:
 			visible_slots[i].text = favorite_indent(visible_slots[i]) + visible_slots[i].text
 		show_favorite_star(visible_slots[i], is_favorite)
-		visible_slots[i].position.x = slot_offset
+		place_slot(i)
+	show_peek_text()
+	if row_stripes != null:
+		row_stripes.queue_redraw()
+	if inline_layer != null:
+		inline_layer.queue_redraw()
 	if post_draw_callback != null:
 		post_draw_callback.call()
 
@@ -1627,18 +2520,36 @@ func toggle_hidden():
 	else:
 		hide_item()
 
+const SELF_LAUNCH_SCRIPTS = ["Plain Launcher.sh", "PlainLauncher.sh"]
+
+static func unique_by_filename(options: Array) -> Array:
+	var seen = {}
+	var unique = []
+	for opt in options:
+		var key = opt.filename.to_lower()
+		if not seen.has(key):
+			seen[key] = true
+			unique.append(opt)
+	return unique
+
 func list_multiple_paths_combined(paths):
+	var listed = {}
 	for path in paths:
-		if _missing_dirs.has(path):
+		if _missing_dirs.has(path) or listed.has(path.to_lower()):
 			continue
+		listed[path.to_lower()] = true
 		var dir = DirAccess.open(path)
 		if dir == null:
 			print("FAILED TO ACCESS " + path)
 			_missing_dirs[path] = true
 			continue
 		list_directory_contents(dir, false, [], false)
+	Global.option_list = unique_by_filename(Global.option_list).filter(func(opt): return not opt.filename in SELF_LAUNCH_SCRIPTS)
 	Global.option_list.sort_custom(by_display_name)
 	restore_position()
+
+static func shown_title(opt) -> String:
+	return str(Global.ALIAS_MAP.get(opt.clean.to_lower(), opt.clean))
 
 static func shown_name(opt) -> String:
 	return str(Global.ALIAS_MAP.get(opt.clean.to_lower(), opt.clean)).to_lower()
@@ -1710,12 +2621,13 @@ func list_directory_contents(directory: DirAccess, dirs_only=true, special=[], r
 func move_down():
 	if not can_scroll:
 		return
+	play_sound("move")
 	if option_selection >= option_list.size() - 1:
 		scroll_offset = 0
 		option_selection = -1
 		vibrate(50)
 		show_options(0)
-	elif option_selection == scroll_offset + visible_slots.size() - 1:
+	elif option_selection == scroll_offset + focus_rows() - 1:
 		scroll_offset += 1
 		show_options(scroll_offset)
 	if confirm_hold_time != null:
@@ -1725,9 +2637,10 @@ func move_down():
 func move_up():
 	if not can_scroll:
 		return
+	play_sound("move")
 	if option_selection <= 0:
-		if option_list.size() >= visible_slots.size():
-			scroll_offset = option_list.size() - visible_slots.size()
+		if option_list.size() >= focus_rows():
+			scroll_offset = option_list.size() - focus_rows()
 			show_options(scroll_offset)
 		option_selection = option_list.size()
 		vibrate(50)
@@ -1760,6 +2673,9 @@ func get_system_settings_options(system_for_settings=Global.subscreen):
 	for id in Launcher.emulators_for_system(system_for_settings):
 		if id not in emulators and id not in hidden:
 			emulators.append(id)
+	if Launcher.uses_commands():
+		var available = Launcher.load_intents()
+		emulators = emulators.filter(func(id): return available.has(id))
 	if not emulators.is_empty():
 		options["EMULATOR"] = emulators
 	return options
@@ -1831,20 +2747,12 @@ func get_user_paths(system: String) -> Array:
 
 func get_additional_paths(system: String):
 	var paths_file = get_paths_filepath(system)
-	var compat_file = get_compat_paths_filepath(system)
 	var paths = []
 	if FileAccess.file_exists(paths_file):
 		for path in FileAccess.get_file_as_string(paths_file).split("\n"):
 			if path != "":
 				paths.append(path)
-	if FileAccess.file_exists(compat_file) and OS.get_name() == "Android":
-		var external_path = AndroidInterface.get_external_storage_path()
-		print(external_path)
-		if external_path != null:
-			var compat_paths = FileAccess.get_file_as_string(compat_file).split("\n")
-			for path in compat_paths:
-				if path != null and path != "":
-					paths.append(external_path + path)
+	paths.append_array(compat_paths(system))
 	print("GOT ADDITIONAL PATHS " + str(paths) + " FROM " + paths_file)
 	return paths
 
@@ -1886,14 +2794,14 @@ func restore_position():
 				scroll_offset = min(stored_scroll, option_selection) if stored_scroll != null else option_selection
 				break
 			option_selection += 1
-			scroll_offset = max(0, option_selection - visible_slots.size())
+			scroll_offset = max(0, option_selection - focus_rows())
 		if option_selection == option_list.size():
 			# Path match failed — fall back to stored numeric index
 			var title_key = position_key()
 			var stored_idx = cursor_indices.get(title_key, 0)
 			option_selection = min(stored_idx, option_list.size() - 1)
 			var stored_scroll = scroll_offsets.get(title_key, 0)
-			scroll_offset = min(stored_scroll, max(0, option_list.size() - visible_slots.size()))
+			scroll_offset = min(stored_scroll, max(0, option_list.size() - focus_rows()))
 
 		if not option_list.is_empty() and option_selection >= option_list.size():
 			option_selection = option_list.size() - 1
@@ -1911,14 +2819,20 @@ func on_scroll():
 	refresh_art()
 
 func cursor_locked():
-	return disable_scroll or (letter_scroller != null and letter_scroller.active and not letter_scroller.peeking)
+	if launching:
+		return true
+	if disable_scroll or letter_scroller == null:
+		return disable_scroll
+	if Input.is_action_pressed("trigger_r") and letters_allowed():
+		return true
+	return letter_scroller.active
 
 func letters_allowed() -> bool:
 	return special_allowed() and not option_list.is_empty()
 
 func jump_to_row(index: int):
 	option_selection = clampi(index, 0, option_list.size() - 1)
-	scroll_offset = clampi(option_selection, 0, maxi(0, option_list.size() - visible_slots.size()))
+	scroll_offset = clampi(option_selection, 0, maxi(0, option_list.size() - focus_rows()))
 	show_options(scroll_offset)
 	highlight_selection()
 	refresh_art()
@@ -1937,6 +2851,15 @@ func _process(delta):
 			letter_scroller.finish()
 	if Input.is_action_just_pressed("options") and special_allowed():
 		Navigator.go_to_special()
+	if confirm_just_released():
+		play_sound("accept")
+	elif back_just_pressed():
+		play_sound("back")
+	if effects_on() and not cursor_locked() and not panel_open() and not launching:
+		if confirm_just_pressed():
+			press_feedback(true)
+		elif confirm_just_released():
+			press_feedback(false)
 	if message_overflow > 0.0 and message.modulate.a > 0:
 		var speed = prompt_text_size() * 3.0
 		message_scroll_time += delta
@@ -1950,24 +2873,20 @@ func _process(delta):
 	elif !message_queue.is_empty():
 		show_message(message_queue.pop_front())
 	if !cursor_locked():
+		if _queued_move != 0 and not waiting_for_art():
+			step_when_art_ready(_queued_move)
 		if Global.up_just_pressed():
-			move_up()
+			step_when_art_ready(-1)
 			held_time = Time.get_ticks_msec() + 500
-			on_scroll()
 		if Global.up_held():
-			if Time.get_ticks_msec() - held_time > 50:
-				move_up()
+			if Time.get_ticks_msec() - held_time > 50 and step_when_art_ready(-1):
 				held_time = Time.get_ticks_msec()
-				on_scroll()
 		if Global.down_just_pressed():
-			move_down()
+			step_when_art_ready(1)
 			held_time = Time.get_ticks_msec() + 500
-			on_scroll()
 		if Global.down_held():
-			if Time.get_ticks_msec() - held_time > 50:
-				move_down()
+			if Time.get_ticks_msec() - held_time > 50 and step_when_art_ready(1):
 				held_time = Time.get_ticks_msec()
-				on_scroll()
 		if Global.right_just_pressed():
 			_scroll_horizontal(1)
 			held_time = Time.get_ticks_msec() + 500
@@ -1984,6 +2903,8 @@ func _process(delta):
 				held_time = Time.get_ticks_msec()
 		if Input.is_action_just_pressed("special") and special_allowed():
 			Navigator.go_to_special()
+	else:
+		_queued_move = 0
 
 func _physics_process(delta):
 	if title != null and title_collapsed != (title_can_be_blank and title.text == ""):
@@ -2014,7 +2935,7 @@ func _physics_process(delta):
 	if cursor_locked():
 		return
 
-	if (confirm_swapped and Input.is_action_just_pressed("back")) or (!confirm_swapped and Input.is_action_just_pressed("select")):
+	if confirm_just_pressed():
 		confirm_hold_time = Time.get_ticks_msec()
 	if !confirm_held() and touch_position == null and confirm_hold_time != null:
 		if pending_special:
@@ -2022,15 +2943,16 @@ func _physics_process(delta):
 			return
 		confirm_hold_time = null
 
-	if option_selection - scroll_offset >= visible_slots.size():
+	if option_selection - scroll_offset >= focus_rows():
 		print("OPTION SELECTION: " + str(option_selection) + " SCROLL OFFSET " + str(scroll_offset) + " VISIBLE_SLOT SIZE " + str(visible_slots.size()))
-		scroll_offset = option_selection - visible_slots.size() + 1
+		scroll_offset = option_selection - focus_rows() + 1
 	if visible_slots.is_empty():
 		return
 	if option_selection == 0 and scroll_offset != 0:
 		scroll_offset = 0
 	var curr_slot = visible_slots[option_selection - scroll_offset]
 	if special_allowed() and (confirm_hold_time != null and Time.get_ticks_msec() - confirm_hold_time > 500):
+		press_pivot(curr_slot)
 		if curr_slot.scale.x < 1.2:
 			curr_slot.scale *= 1.1
 			curr_slot.size /= 1.1
@@ -2050,14 +2972,15 @@ func _physics_process(delta):
 		if curr_slot.scale.x < 1.0:
 			curr_slot.scale = Vector2(1,1)
 			curr_slot.size = slot_size
+			place_slot(visible_slots.find(curr_slot))
 	else:
 		pending_special = false
-	if pending_special and ((confirm_swapped and Input.is_action_just_released("back")) or (!confirm_swapped and Input.is_action_just_released("select"))):
+	if pending_special and (Input.is_action_just_released("key_confirm") or (confirm_swapped and Input.is_action_just_released("back")) or (!confirm_swapped and Input.is_action_just_released("select"))):
 		touch_check_time = Time.get_ticks_msec() + 1000
 		Navigator.go_to_special()
 		return
 
-	if touch_position == null:
+	if touch_position == null and not _shaking:
 		if title.position.x < left_bound - 1:
 			title.position.x = lerp(float(title.position.x), left_bound, 0.2)
 		else:
@@ -2085,7 +3008,7 @@ func _physics_process(delta):
 				touch_momentum = 0.0
 				touch_scroll_accum = 0.0
 		if Time.get_ticks_msec() > touch_check_time:
-			if not pending_back and not pending_special:
+			if not pending_back and not pending_special and not waiting_for_art():
 				var moving = false
 				if control_tilt.y < -0.1:
 					moving = true
@@ -2112,16 +3035,78 @@ static func stick_repeat_ms(ratio: float) -> float:
 	var push = clampf((1.0 - ratio) / 0.9, 0.0, 1.0)
 	return lerpf(STICK_REPEAT_SLOW_MS, STICK_REPEAT_FAST_MS, push)
 
+const SHAKE_STEPS = [1.0, -1.0, 0.7, -0.7, 0.4, -0.4, 0.0]
+const SHAKE_STEP_SECONDS = 0.045
+var _shaking = false
+
+static func shake_offsets(amplitude: float) -> Array:
+	return SHAKE_STEPS.map(func(f): return f * amplitude)
+
+func shake_refresh():
+	vibrate(120)
+	title.position.x = left_bound
+	if not effects_on():
+		return
+	_shaking = true
+	var amplitude = scaled_text_height * 0.12
+	var tween = create_tween().set_parallel()
+	var targets = [[title, left_bound]]
+	if cover != null and cover.visible:
+		targets.append([cover, cover.position.x])
+	for target in targets:
+		var steps = create_tween()
+		for offset in shake_offsets(amplitude):
+			steps.tween_property(target[0], "position:x", target[1] + offset, SHAKE_STEP_SECONDS)
+		tween.tween_subtween(steps)
+	tween.chain().tween_callback(func(): _shaking = false)
+
 func vibrate(duration):
 	if !Settings.get_setting(Settings.CFG_VIBRATE):
 		return
 	Input.vibrate_handheld(duration)
 
+static func needs_confirm_button(already_set: bool, pads: int) -> bool:
+	return not already_set and pads > 0
+
+func ask_for_confirm_button():
+	if not needs_confirm_button(Settings.get_setting(Settings.CFG_CONFIRM_SET), Input.get_connected_joypads().size()):
+		return
+	if root_path == "" or panel_open() or launching or Navigator.current_screen in ["", "confirm_set"]:
+		return
+	Navigator.push("confirm_set")
+
 func swap_confirm_key():
 	confirm_swapped = !confirm_swapped
 	Settings.store(Settings.CFG_CONFIRM_SWAP, confirm_swapped)
+	apply_face_swap(confirm_swapped)
+
+static func face_buttons(swapped: bool) -> Dictionary:
+	return {"favorite": JOY_BUTTON_X if swapped else JOY_BUTTON_Y, "special": JOY_BUTTON_Y if swapped else JOY_BUTTON_X}
+
+static func apply_face_swap(swapped: bool):
+	var buttons = face_buttons(swapped)
+	for action in buttons:
+		for event in InputMap.action_get_events(action):
+			if event is InputEventJoypadButton:
+				InputMap.action_erase_event(action, event)
+		var pad = InputEventJoypadButton.new()
+		pad.button_index = buttons[action]
+		pad.device = -1
+		InputMap.action_add_event(action, pad)
+
+var _confirm_blocked_until = -1
+const CONFIRM_BLOCK_FRAMES = 2
+
+func block_confirm():
+	waiting_for_confirm_release = confirm_held()
+	_confirm_blocked_until = Engine.get_process_frames() + CONFIRM_BLOCK_FRAMES
+
+static func confirm_blocked(frame: int, blocked_until: int) -> bool:
+	return frame <= blocked_until
 
 func confirm_pressed():
+	if confirm_blocked(Engine.get_process_frames(), _confirm_blocked_until):
+		return false
 	if pending_special or pending_back:
 		return false
 	if waiting_for_confirm_release:
@@ -2129,19 +3114,46 @@ func confirm_pressed():
 			return false
 		waiting_for_confirm_release = false
 		return false
+	if Input.is_action_just_released("key_confirm"):
+		return true
 	if confirm_swapped:
 		return Input.is_action_just_released("back")
 	return Input.is_action_just_released("select")
 
+func confirm_just_pressed() -> bool:
+	if Input.is_action_just_pressed("key_confirm"):
+		return true
+	return Input.is_action_just_pressed("back" if confirm_swapped else "select")
+
 func confirm_held():
+	if Input.is_action_pressed("key_confirm"):
+		return true
 	if confirm_swapped:
 		return Input.is_action_pressed("back")
 	return Input.is_action_pressed("select")
 
 func back_pressed():
+	if Input.is_action_just_pressed("key_back"):
+		return true
 	if confirm_swapped:
 		return Input.is_action_just_pressed("select")
 	return Input.is_action_just_pressed("back")
+
+var using_keyboard = false
+
+func xbox_labels() -> bool:
+	return Platform.uses_xbox_layout()
+
+func note_input_device(event: InputEvent):
+	var keyboard = using_keyboard
+	if event is InputEventKey and event.pressed:
+		keyboard = true
+	elif (event is InputEventJoypadButton and event.pressed) or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.5):
+		keyboard = false
+	if keyboard != using_keyboard:
+		using_keyboard = keyboard
+		if prompt_bar != null:
+			prompt_bar.queue_redraw()
 
 func up_just_pressed():
 	if Input.is_action_just_pressed("up"):
@@ -2248,9 +3260,37 @@ static func is_system_item(selected) -> bool:
 func custom_art_path(selected) -> String:
 	if is_system_item(selected):
 		return str(Global.root_path + Global.PATH_IMAGES + selected.system + "_custom.png").replace("//", "/")
-	return get_image_path(selected)
+	return own_image_path(selected)
+
+var _compat_art_dirs = {}
+var sync_loading = OS.get_environment("PLAIN_LAUNCHER_SYNC_LOADING") == "1"
+
+func compat_art_dirs(system: String) -> Array:
+	if not _compat_art_dirs.has(system):
+		var dirs = []
+		var list_file = "res://launcher_configs/" + system + "/compatibility_art_paths.txt"
+		if FileAccess.file_exists(list_file):
+			var home = Platform.home_dir()
+			var prefixes = existing_dirs([OS.get_environment("PLAIN_LAUNCHER_ART"), home.path_join("ES-DE/downloaded_media"), home.path_join("Emulation/tools/downloaded_media")] + media_mounts("Emulation/tools/downloaded_media"))
+			for prefix in prefixes:
+				for line in FileAccess.get_file_as_string(list_file).split("\n"):
+					var dir = prefix + line.strip_edges()
+					if line.strip_edges() != "" and DirAccess.dir_exists_absolute(dir):
+						dirs.append(dir)
+		_compat_art_dirs[system] = dirs
+	return _compat_art_dirs[system]
 
 func get_image_path(selected=Global.get_selected()):
+	var own = own_image_path(selected)
+	if own == "" or selected.system == "ANDROID" or is_system_item(selected) or art_exists(own):
+		return own
+	for dir in compat_art_dirs(selected.system):
+		var candidate = dir + "/" + selected.filename.get_basename() + ".png"
+		if art_exists(candidate):
+			return candidate
+	return own
+
+func own_image_path(selected=Global.get_selected()):
 	var system_in_question = selected.system
 	var game_title = selected.filename.get_basename()
 	if game_title == system_in_question:
@@ -2368,6 +3408,9 @@ static func is_button_press(event) -> bool:
 	return BUTTON_ACTIONS.any(func(action): return event.is_action(action))
 
 func _input(event):
+	note_input_device(event)
+	if pad_debug and not (event is InputEventMouseMotion):
+		pad_note("PAD %s %d %s pressed=%s" % [event.get_class(), event.device, event.as_text(), event.is_pressed()])
 	if is_button_press(event):
 		vibrate(BUTTON_BUZZ_MS)
 	if touch_buttons != null and (event is InputEventKey or event is InputEventJoypadButton) and event.pressed:

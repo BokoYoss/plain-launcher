@@ -1,0 +1,9 @@
+{
+	"command": ["C:/Ryujinx/publish/Ryujinx.exe", "{game}"],
+	"programs": [
+		"C:/Ryujinx/Ryujinx.exe",
+		"C:/Program Files/Ryujinx/Ryujinx.exe",
+		"{env:USERPROFILE}/scoop/apps/ryujinx/current/Ryujinx.exe"
+	],
+	"systems": ["SWITCH"]
+}

@@ -1,6 +1,6 @@
 # Plain Launcher
 
-Plain Launcher is a minimal emulation frontend and app launcher built in Godot. It's made for Android handhelds with physical buttons, but it works on your phone too if you are so inclined.
+Plain Launcher is a minimal emulation frontend and app launcher built in Godot. It's made for Android handhelds with physical buttons, but it also runs on Linux handhelds through PortMaster, on the Steam Deck, and on Linux and Windows PCs ([experimental](#experimental)). It works on your phone too if you are so inclined.
 
 ![Example Menu](https://github.com/BokoYoss/plain-launcher/blob/main/screenshots/Screenshot_20231225-024047.png)
 
@@ -12,6 +12,7 @@ Plain Launcher is a minimal emulation frontend and app launcher built in Godot. 
 - Cover art scraping from ScreenScraper or SteamGridDB.
 - Recent, Favorites, and hiding anything you don't want to see.
 - Launches Android apps too, so it works as your home launcher.
+- Runs on Android, with [experimental](#experimental) builds for PortMaster handhelds (muOS, ArkOS, ROCKNIX, Knulli...), Steam Deck, Linux, and Windows.
 - PC games through GameNative.
 - Pick your font, colors, text size, cover size, and which side the cover goes on.
 
@@ -27,7 +28,7 @@ RetroArch, DuckStation, PPSSPP, AetherSX2/NetherSX2, Dolphin, Mupen64Plus, Citra
 
 ## Setup
 
-On first launch, pick your confirm button and where Plain Launcher should live (internal storage or an SD card). It creates this:
+On first launch, pick where Plain Launcher should live (internal storage or an SD card on Android, or a folder on PC). It creates this:
 
 ```
 PlainLauncher/
@@ -44,7 +45,7 @@ Put games in `Games/<SYSTEM>/`. Common folders from other frontends (like ES-DE'
 
 Put `.png` images in `Imgs/<SYSTEM>/`, named the same as the game without its extension: `Games/GBA/Apotris (USA).gba` → `Imgs/GBA/Apotris (USA).png`. Android apps use their package name instead, like `Imgs/ANDROID/org.videolan.vlc.png`.
 
-Or open a game's options and use **Find cover art** to scrape it, search the web, or pick an image from your files. Scraping needs a ScreenScraper login or a SteamGridDB key under Settings → Scraper.
+Or open a game's options and use **Find cover art** to scrape it, search the web, or pick an image from your files. Scraping needs a ScreenScraper login or a SteamGridDB key under Settings → Scraper. Scraping works everywhere; web search is Android-only.
 
 ### PC games through GameNative
 
@@ -64,11 +65,13 @@ No Frontend Sync in your GameNative? Make the file yourself: `Games/STEAM/<Game 
 
 | Action | Button | Touch |
 |---|---|---|
-| Confirm | South face (swappable) | On-screen A, or tap the selected row |
-| Back | East face (swappable) | On-screen B, or drag left |
+| Confirm | A | On-screen A, or tap the selected row |
+| Back | B | On-screen B, or drag left |
 | Settings | Start | |
 | Options | Select, or hold Confirm | Touch and hold |
 | Favorite | X | |
+
+The first time Plain Launcher sees a controller, it asks you to press A, so it works whether your pad puts A on the right (Nintendo-style) or the bottom (Xbox-style). X and Y follow along. To change it later, use Settings → Controls → **Set confirm button**. The prompts always show A for confirm and B for back.
 
 Touching the screen brings up A and B buttons in the corner. Tapping a row selects it. Options works on systems, games, and apps. In any menu, X puts a setting back to its default. Touch can be turned off under Settings → Controls.
 
@@ -135,13 +138,68 @@ Android won't let one app close another, so whether a new game replaces the runn
 ## Building
 
 1. Build [plain-launcher-android-plugin](https://github.com/BokoYoss/plain-launcher-android-plugin) into `addons/` with `setup-plugin.sh` (Linux) or `setup-plugin.bat` (Windows). It needs JDK 17.
-2. Open the project in Godot 4.
-3. Export for Android with the included preset.
+2. Open the project in Godot 4.6.
+3. Export with the included presets: **Android**, **Linux Desktop**, **Windows Desktop**, or **Linux PortMaster** (just the `.pck`- pair it with `portmaster/PlainLauncher.sh`, saved as `Plain Launcher.sh`). Desktop and PortMaster builds land in `output/`, which is gitignored.
 
-For ScreenScraper in your own builds, copy `secrets.example.json` to `secrets.json` (it's gitignored) and fill in your dev credentials. Without it, ScreenScraper just shows as unavailable.
+For ScreenScraper in your own builds, copy `secrets.example.json` to `secrets.json` (it's gitignored) and set `SCREENSCRAPER_URL` to your ScreenScraper proxy. Without it, ScreenScraper just shows as unavailable.
 
 ## Credits
 
 - Fonts are from Google Fonts under the Open Font License. Licenses are in Settings → Credits → Fonts.
 - The [Duel](https://lospec.com/palette-list/duel) palette is by [Arilyn](https://lospec.com/arilynart).
 - System images are from Evan Amos- check out the awesome [Vanamo Online Game Museum](https://commons.wikimedia.org/wiki/User:Evan-Amos).
+
+## Experimental
+
+Plain Launcher also runs on PortMaster handhelds, PC, and the Steam Deck. These builds are newer and less tested than Android, so expect rough edges and please report what you find.
+
+### PortMaster handhelds
+
+Plain Launcher runs as a PortMaster port. It's been tested on muOS, dArkOS, ROCKNIX, and Knulli, and other PortMaster systems should work too.
+
+1. Grab `PlainLauncher-portmaster.zip` and unzip it into your ports folder. You get `Plain Launcher.sh` and a `plainlauncher` folder. On muOS the script goes in `ROMS/Ports` and the folder in `ports`.
+2. Launch **Plain Launcher** from Ports.
+
+It finds your existing ROM folders (muOS names like `ROMS/Game Boy Advance` or lowercase ones like `roms/gba`) and launches games with the handheld's own RetroArch and cores. On muOS it shows your muOS box art too.
+
+- Picking a game closes Plain Launcher, runs RetroArch, and brings Plain Launcher back when you quit.
+- Some systems ship a few cores as 32-bit (like gpSP on ROCKNIX). Plain Launcher spots those and runs them with the handheld's 32-bit RetroArch.
+- Only RetroArch is set up so far. Add other emulators as custom launchers- see [Command launchers](#command-launchers).
+- Settings → Launchers → **RetroArch config** picks between the handheld's RetroArch config and Plain Launcher's own copy, so you can change RetroArch settings without touching the rest of your setup.
+- **Launch on Boot** at the top of Settings shows whether the handheld starts in Plain Launcher, and how to set it up. Plain Launcher only reads the system's settings and never changes them:
+  - **muOS:** set Configuration → General Settings → Device Startup to **Last Game**, then open Plain Launcher from Ports once. Quitting Plain Launcher drops you back into muOS.
+  - **ROCKNIX and Knulli:** in EmulationStation, highlight Plain Launcher in Ports, open its game options and choose **Launch this game at startup**.
+- Settings has **Reboot device** and **Shut down device** just above Quit.
+- If something goes wrong, check `ports/plainlauncher/log.txt`.
+
+### PC and Steam Deck
+
+- **Linux and Steam Deck:** unzip `PlainLauncher-linux.zip` and run `PlainLauncher.x86_64`. On the Deck, add it to Steam as a non-Steam game from Desktop Mode.
+- **Windows:** unzip `PlainLauncher-windows.zip` and run `PlainLauncher.exe`.
+
+On first launch, use your home folder or pick one. It also finds games in EmuDeck's `~/Emulation/roms` (SD cards too) and ES-DE's `~/ROMs`, plus box art from their downloaded media.
+
+Built-in RetroArch launchers:
+
+| Platform | RetroArch |
+|---|---|
+| Steam Deck | Flatpak, the one EmuDeck installs |
+| Linux | Installed RetroArch, or the Flatpak |
+| Windows | `C:\RetroArch-Win64`, or Steam's RetroArch |
+
+Plain Launcher stays put while you play and picks back up when the emulator closes.
+
+### Command launchers
+
+On PortMaster, PC, and Steam Deck, launchers are a command line instead of an intent:
+
+```json
+{
+	"command": ["retroarch", "-f", "-L", "{env:HOME}/.config/retroarch/cores/{core}_libretro.so", "{game}"],
+	"systems": ["GBA", "GBC"]
+}
+```
+
+They use the same tokens as above, plus `{env:NAME}` for an environment variable and `{retroarch_config}` for the RetroArch config picked under Settings → Launchers. Your own go in `Config/COMMON/commands_custom/`, and you can edit them right in Settings → Launchers- the command is one line, with quotes around anything that has spaces. Pressing A on a built-in launcher's field shows the whole value. Custom launchers show whether their program was found, and wherever the system has a file dialog (Windows, Linux desktops, Steam Deck Desktop Mode), **Browse for program** picks the emulator for you.
+
+Built-in launchers only show up when their emulator is installed. On Windows they check the usual install folders (Program Files, `C:\<Emulator>`, and Scoop), so standalone DuckStation, PCSX2, Dolphin, PPSSPP, melonDS, Azahar, Ryujinx, Eden, MAME, Flycast, RMG and GZDoom are picked up automatically.

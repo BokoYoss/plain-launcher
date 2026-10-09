@@ -1,5 +1,7 @@
 extends "res://tests/test_case.gd"
 
+const ArtScraper = preload("res://scenes/art_scraper.gd")
+
 var root: String
 
 func before_each():
@@ -256,3 +258,47 @@ func test_app_art_uses_package_names():
 	assert_true(FileAccess.file_exists(art_dir + "/com.github.syncthing.png"), "renamed to package")
 	DirAccess.remove_absolute(art_dir + "/com.github.syncthing.png")
 	Global.root_path = saved_root
+
+func test_whole_system_scrape_finds_roms_in_extra_folders():
+	var saved_root = Global.root_path
+	Global.root_path = root
+	var extra = root + "/es_roms/zztest"
+	DirAccess.make_dir_recursive_absolute(extra)
+	DirAccess.make_dir_recursive_absolute(root + "/Games/ZZTEST")
+	DirAccess.make_dir_recursive_absolute(root + "/Config/ZZTEST")
+	for file in [extra + "/Metroid.gba", extra + "/gamelist.xml", root + "/Games/ZZTEST/Zelda.gba"]:
+		FileAccess.open(file, FileAccess.WRITE).close()
+	var paths = FileAccess.open(root + "/Config/ZZTEST/paths.txt", FileAccess.WRITE)
+	paths.store_string(extra + "\n" + extra)
+	paths.close()
+	write_json(root + "/Config/ZZTEST/config.json", {"EXTENSIONS": ["gba"]})
+	var system = option.new()
+	system.is_dir = true
+	system.system = "ZZTEST"
+	if Global.clean_regex == null:
+		Global.clean_regex = RegEx.create_from_string(Global.CLEAN_PATTERN)
+	var names = ArtScraper.games_for(system).map(func(o): return o.filename)
+	names.sort()
+	Global.root_path = saved_root
+	OS.execute("rm", ["-rf", root + "/es_roms", root + "/Games", root + "/Config"])
+	assert_eq(names, ["Metroid.gba", "Zelda.gba"], "ROMs from every folder, once each, without other files")
+
+func test_skip_games_with_art_counts_other_art_folders():
+	var saved_root = Global.root_path
+	Global.root_path = root
+	var media = root + "/downloaded_media/zztest/covers"
+	DirAccess.make_dir_recursive_absolute(media)
+	DirAccess.make_dir_recursive_absolute(root + "/Imgs/ZZTEST")
+	Image.create(4, 4, false, Image.FORMAT_RGBA8).save_png(media + "/Metroid.png")
+	Image.create(4, 4, false, Image.FORMAT_RGBA8).save_png(root + "/Imgs/ZZTEST/Zelda.png")
+	Global._compat_art_dirs["ZZTEST"] = [media]
+	var results = {}
+	for name in ["Metroid", "Zelda", "Kirby"]:
+		var game = option.new()
+		game.filename = name + ".gba"
+		game.system = "ZZTEST"
+		results[name] = ArtScraper.already_has_art(game)
+	Global._compat_art_dirs.erase("ZZTEST")
+	Global.root_path = saved_root
+	OS.execute("rm", ["-rf", root + "/downloaded_media", root + "/Imgs"])
+	assert_eq(results, {"Metroid": true, "Zelda": true, "Kirby": false}, "art from ES-DE or EmuDeck media counts as having art")

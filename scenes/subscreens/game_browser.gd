@@ -18,6 +18,7 @@ func _ready():
 		Global.populate_filter = Callable(self, "filter_item")
 
 	Global.set_prompts(prompts_for(Global.subscreen))
+	Global.set_up_slots()
 	populate_content()
 
 
@@ -119,13 +120,17 @@ func jump_to_letter(direction: int):
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
+	if Global.launching:
+		return
 	if Global.confirm_pressed():
 		Global.store_position()
 
 		var selected = Global.get_selected()
 		if selected.absolute_path == "":
 			return
-		Launcher.launch_entry(selected.absolute_path, selected.system, selected.clean)
+		var settings = Global.get_system_settings(selected.system, selected.filename, selected.clean)
+		var launcher_name = Global.launcher_label(str(settings.get("EMULATOR", "")), settings.get("CORE"))
+		Global.launch_with_effect(func(): Launcher.launch_entry(selected.absolute_path, selected.system, selected.clean), Global.shown_title(selected), launcher_name)
 	if Input.is_action_just_pressed("shoulder_r"):
 		jump_to_letter(1)
 		Global.letter_scroller.peek()

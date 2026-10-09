@@ -3,3 +3,4 @@
 /Roms/PS
 /ROMs/playstation
 /ROMs/psx
+/Playstation

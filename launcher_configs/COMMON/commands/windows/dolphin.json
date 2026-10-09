@@ -1,0 +1,10 @@
+{
+	"command": ["C:/Program Files/Dolphin/Dolphin.exe", "-b", "-e", "{game}"],
+	"programs": [
+		"C:/Program Files/Dolphin-x64/Dolphin.exe",
+		"C:/Dolphin-x64/Dolphin.exe",
+		"C:/Dolphin/Dolphin.exe",
+		"{env:USERPROFILE}/scoop/apps/dolphin/current/Dolphin.exe"
+	],
+	"systems": ["GAMECUBE", "WII"]
+}

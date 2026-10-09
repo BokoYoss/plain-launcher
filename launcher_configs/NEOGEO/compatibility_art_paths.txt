@@ -1,0 +1,2 @@
+/SNK Neo Geo/box
+/neogeo/covers

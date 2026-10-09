@@ -1,0 +1,2 @@
+/Nintendo SNES-SFC/box
+/snes/covers

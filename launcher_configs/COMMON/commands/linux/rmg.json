@@ -1,0 +1,4 @@
+{
+	"command": ["flatpak", "run", "--filesystem=/run/media", "--filesystem={game_dir}", "com.github.Rosalie241.RMG", "--fullscreen", "{game}"],
+	"systems": ["N64"]
+}

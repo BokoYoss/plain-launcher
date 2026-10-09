@@ -13,7 +13,8 @@ func after_each():
 
 func test_glyphs_follow_confirm_layout():
 	assert_eq([PromptBar.glyph_for("confirm", false), PromptBar.glyph_for("back", false)], ["A", "B"], "default: A confirms")
-	assert_eq([PromptBar.glyph_for("confirm", true), PromptBar.glyph_for("back", true)], ["B", "A"], "swapped confirm")
+	assert_eq([PromptBar.glyph_for("confirm", true), PromptBar.glyph_for("back", true)], ["A", "B"], "swapping moves the button, A still confirms")
+	assert_eq([PromptBar.glyph_for("confirm", false, false, true), PromptBar.glyph_for("back", false, false, true)], ["A", "B"], "same on Xbox-style pads")
 	assert_eq([PromptBar.glyph_for("options", false), PromptBar.glyph_for("start", false), PromptBar.glyph_for("select", false), PromptBar.glyph_for("shoulders", false)], ["Y", "START", "SELECT", "LR"], "other glyphs")
 
 func test_bar_enabled_by_default():
@@ -58,3 +59,10 @@ func test_face_and_menu_buttons_buzz():
 	up.physical_keycode = KEY_UP
 	up.pressed = true
 	assert_false(Global.is_button_press(up), "d-pad does not")
+
+func test_press_a_is_centered():
+	var spot = PressGlyph.layout(100.0, 40.0, Vector2(640.0, 480.0))
+	var right = spot.center.x + spot.radius
+	assert_true(is_equal_approx(spot.word_x, 640.0 - right), "same space on both sides")
+	assert_eq(spot.center.y, 240.0, "middle of the screen")
+	assert_true(spot.word_x + 100.0 < spot.center.x - spot.radius, "word sits before the button")

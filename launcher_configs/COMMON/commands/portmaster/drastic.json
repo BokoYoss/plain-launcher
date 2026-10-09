@@ -1,0 +1,4 @@
+{
+	"command": ["/opt/muos/script/launch/ext-drastic.sh", "{basename}", "", "{game}"],
+	"systems": ["NDS"]
+}

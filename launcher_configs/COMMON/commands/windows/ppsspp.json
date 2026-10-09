@@ -1,0 +1,8 @@
+{
+	"command": ["C:/Program Files/PPSSPP/PPSSPPWindows64.exe", "--fullscreen", "{game}"],
+	"programs": [
+		"C:/PPSSPP/PPSSPPWindows64.exe",
+		"{env:USERPROFILE}/scoop/apps/ppsspp/current/PPSSPPWindows64.exe"
+	],
+	"systems": ["PSP"]
+}

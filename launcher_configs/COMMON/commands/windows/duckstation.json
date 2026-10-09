@@ -1,0 +1,9 @@
+{
+	"command": ["C:/Program Files/DuckStation/duckstation-qt-x64-ReleaseLTCG.exe", "-batch", "-fullscreen", "--", "{game}"],
+	"programs": [
+		"{env:LOCALAPPDATA}/Programs/DuckStation/duckstation-qt-x64-ReleaseLTCG.exe",
+		"C:/DuckStation/duckstation-qt-x64-ReleaseLTCG.exe",
+		"{env:USERPROFILE}/scoop/apps/duckstation/current/duckstation-qt-x64-ReleaseLTCG.exe"
+	],
+	"systems": ["PS"]
+}

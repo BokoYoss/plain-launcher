@@ -79,3 +79,38 @@ func test_stick_scroll_has_a_speed_limit():
 	assert_eq(Global.stick_repeat_ms(0.1), Global.STICK_REPEAT_FAST_MS, "full tilt capped so covers can keep up")
 	assert_eq(Global.stick_repeat_ms(1.0), Global.STICK_REPEAT_SLOW_MS, "light tilt is slow")
 	assert_true(Global.stick_repeat_ms(0.5) < Global.STICK_REPEAT_SLOW_MS and Global.stick_repeat_ms(0.5) > Global.STICK_REPEAT_FAST_MS, "speeds up with tilt")
+
+func test_same_game_from_two_folders_is_listed_once():
+	var first = option.new()
+	first.filename = "Golden Sun (USA).gba"
+	var same = option.new()
+	same.filename = "golden sun (usa).GBA"
+	var other = option.new()
+	other.filename = "Metroid Fusion (USA).gba"
+	var unique = Global.unique_by_filename([first, same, other])
+	assert_eq(unique.size(), 2, "duplicate dropped")
+	assert_eq(unique[0], first, "first folder wins")
+
+func test_desktop_setup_always_uses_a_plainlauncher_folder():
+	var Setup = preload("res://scenes/storage_setup.gd")
+	assert_eq(Setup.desktop_root("/home/me"), "/home/me/PlainLauncher", "home folder gets its own PlainLauncher folder")
+	assert_eq(Setup.desktop_root("/home/me/PlainLauncher"), "/home/me/PlainLauncher", "picking the folder itself is kept")
+	assert_eq(Setup.desktop_root("D:/Games"), "D:/Games/PlainLauncher", "Windows drives too")
+
+func test_found_paths_lists_existing_automatic_folders():
+	var base = ProjectSettings.globalize_path("user://found_paths")
+	DirAccess.make_dir_recursive_absolute(base + "/es/zztest")
+	DirAccess.make_dir_recursive_absolute(base + "/mine")
+	var saved_env = OS.get_environment("PLAIN_LAUNCHER_ZZTEST_PATHS")
+	var saved_root = Global.root_path
+	Global.root_path = base + "/root"
+	DirAccess.make_dir_recursive_absolute(base + "/root/Config/ZZTEST")
+	var paths = FileAccess.open(base + "/root/Config/ZZTEST/paths.txt", FileAccess.WRITE)
+	paths.store_string(base + "/mine")
+	paths.close()
+	OS.set_environment("PLAIN_LAUNCHER_ZZTEST_PATHS", base + "/es/zztest:" + base + "/missing:" + base + "/mine")
+	var found = Global.found_paths("ZZTEST")
+	OS.set_environment("PLAIN_LAUNCHER_ZZTEST_PATHS", saved_env)
+	Global.root_path = saved_root
+	OS.execute("rm", ["-rf", base])
+	assert_eq(found, [base + "/es/zztest"], "only folders that exist, without the ones you added yourself")
