@@ -77,15 +77,16 @@ func restore_defaults():
 	settings = load_settings()
 
 func _check(label: String, checked: bool, toggle: Callable, default_checked = null) -> option:
-	var opt = option.with_callback(label, func():
+	var confirm = func():
 		toggle.call()
 		changed = true
-		_refresh())
+		_refresh()
+	var opt = option.with_callback(label, confirm)
 	opt.set_meta("checked", checked)
 	if default_checked != null:
 		opt.callbacks[Actions.START] = func():
 			if checked != default_checked:
-				opt.trigger(Actions.CONFIRM)
+				confirm.call()
 	return opt
 
 func _rename(text: String):

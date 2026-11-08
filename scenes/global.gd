@@ -4,8 +4,8 @@ var window_height = 0
 var window_width = 0
 var title_offset = 0
 
-var root_path = ""
-var waiting_root_path = ""
+var root_path: String = ""
+var waiting_root_path: String = ""
 
 const PATH_CONFIG = "/Config/"
 const PATH_GAMES = "/Games/"
@@ -488,7 +488,7 @@ func refresh_prompt_bar():
 	if prompt_bar != null:
 		prompt_bar.queue_redraw()
 
-var VERSION = "31"
+var VERSION = "32"
 
 # Cover art
 @onready var cover := $BoxContainer
@@ -537,19 +537,12 @@ func _ready():
 		log_pads.call_deferred()
 	if Platform.is_desktop_build() and DisplayServer.get_name() != "headless" and OS.get_environment("PLAIN_LAUNCHER_WINDOWED") != "1":
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-	window_width = display_size().x
-	window_height = display_size().y
-	if window_height / window_width >= 2.0:
-		title_offset = text_height
-		window_height -= title_offset
-	else:
-		title_offset = 0
-	BACKDROP.size = Vector2(window_width, window_height)
-	root_path = Settings.get_setting(Settings.CFG_ROOT)
-	if root_path != null and !DirAccess.dir_exists_absolute(root_path):
+	measure_window()
+	root_path = root_setting(Settings.get_setting(Settings.CFG_ROOT))
+	if root_path != "" and !DirAccess.dir_exists_absolute(root_path):
 		waiting_root_path = root_path
-		root_path = null
-	if (root_path == null or root_path == "") and waiting_root_path == "":
+		root_path = ""
+	if root_path == "" and waiting_root_path == "":
 		_use_environment_root()
 
 	BACKDROP.modulate = Settings.get_setting(Settings.CFG_BG_COLOR)
@@ -627,13 +620,15 @@ func _ready():
 	show_message("Welcome to PlainLauncher!")
 	Navigator.go_to_main()
 
+static func root_setting(value) -> String:
+	return value if value is String else ""
+
 func _use_environment_root():
 	var env_root = OS.get_environment("PLAIN_LAUNCHER_ROOT")
 	if env_root == "":
 		return
 	DirAccess.make_dir_recursive_absolute(env_root)
-	if StorageSetup.set_up_root(DirAccess.open(env_root)):
-		root_path = Settings.get_setting(Settings.CFG_ROOT)
+	StorageSetup.set_up_root(DirAccess.open(env_root))
 
 static func existing_dirs(candidates: Array) -> Array:
 	return candidates.filter(func(c): return c != "" and DirAccess.dir_exists_absolute(c))
@@ -691,7 +686,7 @@ func store_version():
 	version_file.store_string(VERSION)
 
 func migrate_configs():
-	if root_path == "" or root_path == null:
+	if root_path == "":
 		return
 	_migrate_choices()
 
@@ -743,12 +738,12 @@ func write_json(path: String, data, indent: String = "\t"):
 const RECENT_MAX = 50
 
 func get_recent_list() -> Array:
-	if root_path == null:
+	if root_path == "":
 		return []
 	return read_json_array(root_path + "/Config/COMMON/recent.json")
 
 func log_recent(game_path: String, system: String, display_name: String):
-	if root_path == null:
+	if root_path == "":
 		return
 	var recent = get_recent_list()
 	for i in range(recent.size() - 1, -1, -1):
@@ -765,7 +760,7 @@ func log_recent(game_path: String, system: String, display_name: String):
 	write_json(root_path + "/Config/COMMON/recent.json", recent)
 
 func get_list_file_contents():
-	if root_path == null:
+	if root_path == "":
 		return {}
 	return read_json_dict(root_path + "/Config/COMMON/lists.json")
 
@@ -793,20 +788,24 @@ func update_list_file_contents(key, new_list):
 	list_file_contents[key] = new_list
 	write_json(root_path + "/Config/COMMON/lists.json", list_file_contents, "   ")
 
+static func is_tall(width: int, height: int) -> bool:
+	return width > 0 and height >= width * 2
+
 func display_size() -> Vector2i:
 	if OS.get_name() != "Android":
 		return DisplayServer.window_get_size()
 	return DisplayServer.screen_get_size(DisplayServer.window_get_current_screen())
 
-func resize():
-	window_width = display_size().x
-	window_height = display_size().y
-	if window_height / window_width >= 2.0:
-		title_offset = text_height * 5
-		window_height -= title_offset
-	else:
-		title_offset = 0
+func measure_window():
+	var size = display_size()
+	window_width = size.x
+	window_height = size.y
+	title_offset = text_height if is_tall(window_width, window_height) else 0
+	window_height -= title_offset
 	BACKDROP.size = Vector2(window_width, window_height)
+
+func resize():
+	measure_window()
 	for layer in [letter_scroller, touch_buttons]:
 		if layer != null:
 			layer.size = Vector2(window_width, window_height)
@@ -974,7 +973,7 @@ func set_up_slots():
 func refresh_alias(system="COMMON"):
 	var bundled_path = "res://launcher_configs/" + system + "/alias.json"
 	var user_path = str(root_path) + "/" + Global.PATH_CONFIG + "/" + system + "/alias.json"
-	if root_path == null or not (FileAccess.file_exists(bundled_path) or FileAccess.file_exists(user_path)):
+	if root_path == "" or not (FileAccess.file_exists(bundled_path) or FileAccess.file_exists(user_path)):
 		return
 	var aliases = read_json_dict(bundled_path) if FileAccess.file_exists(bundled_path) else {}
 	aliases.merge(read_json_dict(user_path), true)
@@ -1144,7 +1143,7 @@ func clear_all_settings():
 		system_name = config_dir.get_next()
 	config_dir.list_dir_end()
 
-func set_root_path(path):
+func set_root_path(path: String):
 	root_path = path
 	Settings.store(Settings.CFG_ROOT, path)
 

@@ -10,7 +10,7 @@ func before_each():
 	root = ProjectSettings.globalize_path("user://startup_root")
 	_remove_recursive(root)
 	Global.subscreen = ""
-	Global.root_path = null
+	Global.root_path = ""
 	Global.waiting_root_path = ""
 	Global.HIDDEN_LIST.clear()
 	var nav = _nav()
@@ -42,6 +42,35 @@ func test_missing_saved_root_waits_instead_of_setup():
 func test_no_saved_root_goes_to_setup():
 	Navigator.go_to_main()
 	assert_eq(_nav().pushed, ["confirm_set"], "screens pushed")
+
+func _answer_confirm_set(swap: bool):
+	var screen = load("res://scenes/subscreens/confirm_set.gd").new()
+	var was_swapped = Global.confirm_swapped
+	var was_set = Settings.get_setting(Settings.CFG_CONFIRM_SET)
+	screen._done(swap)
+	screen.free()
+	if Global.confirm_swapped != was_swapped:
+		Global.swap_confirm_key()
+	Settings.store(Settings.CFG_CONFIRM_SET, was_set)
+
+func test_missing_root_setting_is_empty_string():
+	assert_eq(Global.root_setting(null), "", "fresh install")
+	assert_eq(Global.root_setting(root), root, "saved root")
+
+func test_first_setup_confirm_continues_to_storage_select():
+	Navigator.go_to_main()
+	_answer_confirm_set(false)
+	assert_eq(_nav().pushed, ["confirm_set", "file_browser"], "screens pushed")
+
+func test_first_setup_back_continues_to_storage_select():
+	Navigator.go_to_main()
+	_answer_confirm_set(true)
+	assert_eq(_nav().pushed, ["confirm_set", "file_browser"], "screens pushed")
+
+func test_changing_confirm_returns_to_previous_screen():
+	Global.root_path = root
+	_answer_confirm_set(false)
+	assert_eq(_nav().pushed, ["<pop>"], "screens pushed")
 
 func test_storage_wait_continues_once_root_appears():
 	Global.waiting_root_path = root
@@ -93,3 +122,8 @@ func test_new_bundled_systems_added_for_existing_users():
 	assert_true(DirAccess.dir_exists_absolute(root + "/Games/STEAM"), "steam games folder")
 	assert_true(FileAccess.file_exists(root + "/Config/STEAM/choices.json"), "steam choices copied")
 	assert_eq(StorageSetup.add_missing_systems(DirAccess.open(root)), [], "nothing to add the second time")
+
+func test_tall_screen_check():
+	assert_true(Global.is_tall(1080, 2400), "tall phone")
+	assert_false(Global.is_tall(1920, 1080), "landscape")
+	assert_false(Global.is_tall(0, 0), "no window yet")

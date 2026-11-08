@@ -38,6 +38,7 @@ func before_each():
 		saved[key] = Settings._data.get(key) if Settings._data != null else null
 
 func after_each():
+	panel.pushed.clear()
 	for key in saved:
 		if saved[key] == null:
 			Settings._data.erase(key)
@@ -425,9 +426,11 @@ func test_storage_lives_in_panel():
 	Platform._android_plugin = null
 	var desktop = _labels(menu.storage_menu).slice(1)
 	var dialogs = Platform.has_native_dialogs()
-	Platform._android_plugin = Object.new()
+	var fake_plugin = Object.new()
+	Platform._android_plugin = fake_plugin
 	var android = _labels(menu.storage_menu).slice(1)
 	Platform._android_plugin = plugin
+	fake_plugin.free()
 	assert_eq(desktop, ["Use home folder", "Choose a folder"] if dialogs else ["Use home folder"], "only choices that work off Android")
 	assert_eq(android, ["Use on-device storage", "Use removable storage", "Choose a folder", "Grant file permissions"], "Android keeps every choice")
 
@@ -770,3 +773,11 @@ func test_confirm_swap_also_swaps_x_and_y():
 	assert_true(InputMap.action_get_events("favorite").any(func(e): return e is InputEventKey), "keyboard key kept")
 	Global.apply_face_swap(false)
 	assert_eq(InputMap.action_get_events("favorite").filter(func(e): return e is InputEventJoypadButton)[0].button_index, JOY_BUTTON_Y, "and back")
+
+func test_options_menu_check_rows_are_freed():
+	var menu = OptionsMenu.new(null)
+	var row = weakref(menu._check("Hidden", false, func(): pass, false))
+	assert_eq(row.get_ref(), null, "check row freed once unused")
+	var menu_ref = weakref(menu)
+	menu = null
+	assert_eq(menu_ref.get_ref(), null, "options menu freed once unused")
